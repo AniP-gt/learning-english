@@ -102,7 +102,7 @@ System Prompt で「メルボルンのバリスタ」等の役割を設定。
 
 Gemini API 連携
 
-モデル: gemini-2.5-flash-preview-09-2025
+モデル: gemini-3-flash
 
 認証: apiKey を環境変数より取得。
 

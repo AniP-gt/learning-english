@@ -12,9 +12,11 @@ const DefaultGeminiModel = "gemini-2.5-flash"
 const DefaultCEFRLevel = "B1"
 
 var AvailableGeminiModels = []string{
+	"gemini-3-flash",
+	"gemini-2.5-flash-lite",
+	"gemini-3.1-flash-lite",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
-	"gemini-2.5-flash-lite-preview-09-2025",
 }
 
 var AvailableCEFRLevels = []string{"A1", "A2", "B1", "B2", "C1", "C2"}
