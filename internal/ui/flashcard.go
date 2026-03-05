@@ -93,6 +93,16 @@ func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		m.flashcardIndex = 0
 		m.flashcardFlipped = false
+	case "s", "S":
+		// Pronounce the current word (macOS: say). playSay is a noop on non-darwin.
+		if m.flashcardIndex >= 0 && m.flashcardIndex < len(m.parsedWords) {
+			word := m.parsedWords[m.flashcardIndex].word
+			// Use a tea.Cmd to run speech asynchronously
+			return m, func() tea.Msg {
+				playSay(word, m.listeningSpeed)
+				return struct{}{}
+			}
+		}
 	}
 	return m, nil
 }

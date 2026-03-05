@@ -176,7 +176,7 @@ func (m Model) renderFlashcardMode(width, height int) string {
 		Align(lipgloss.Center).
 		Render(cardFace)
 
-	hint := styleHint.Render("Space: 裏返す  ←/→: 前後  K: 覚えた  r: リセット  Esc: 戻る")
+	hint := styleHint.Render("Space: 裏返す  ←/→: 前後  K: 覚えた  s: 発音  r: リセット  Esc: 戻る")
 
 	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — フラッシュカード")
 
