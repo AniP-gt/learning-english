@@ -8,9 +8,18 @@ import (
 	"strings"
 )
 
+const DefaultGeminiModel = "gemini-2.5-flash"
+
+var AvailableGeminiModels = []string{
+	"gemini-2.5-flash",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash-lite-preview-09-2025",
+}
+
 type Config struct {
 	DataDir      string
 	GeminiAPIKey string
+	GeminiModel  string
 	GitEnabled   bool
 }
 
@@ -32,6 +41,7 @@ func LoadConfigWithFlags(dataDirFlag string) (*Config, error) {
 	cfg := &Config{
 		DataDir:      filepath.Join(homeDir, "artifacts", "english-learning", "data"),
 		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
+		GeminiModel:  DefaultGeminiModel,
 		GitEnabled:   os.Getenv("GIT_ENABLED") == "true",
 	}
 
@@ -81,6 +91,8 @@ func loadTOML(path string, cfg *Config) error {
 			cfg.DataDir = expandHome(val)
 		case "gemini_api_key":
 			cfg.GeminiAPIKey = val
+		case "gemini_model":
+			cfg.GeminiModel = val
 		case "git_enabled":
 			cfg.GitEnabled = val == "true"
 		}
@@ -103,8 +115,9 @@ func SaveConfig(cfg *Config) error {
 	}
 	content := fmt.Sprintf(`data_dir = "%s"
 gemini_api_key = "%s"
+gemini_model = "%s"
 git_enabled = "%v"
-`, cfg.DataDir, cfg.GeminiAPIKey, cfg.GitEnabled)
+`, cfg.DataDir, cfg.GeminiAPIKey, cfg.GeminiModel, cfg.GitEnabled)
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
@@ -120,7 +133,8 @@ func WriteDefaultConfig() error {
 
 data_dir = "%s"
 gemini_api_key = ""
+gemini_model = "%s"
 git_enabled = "false"
-`, defaultDataDir)
+`, defaultDataDir, DefaultGeminiModel)
 	return os.WriteFile(path, []byte(content), 0644)
 }

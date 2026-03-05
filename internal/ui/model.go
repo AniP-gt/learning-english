@@ -75,10 +75,11 @@ type Model struct {
 	roleplayInputMode bool
 	roleplayLoading   bool
 
-	showSettings   bool
-	settingsCursor int
-	settingsInputs [2]textinput.Model
-	settingsMsg    string
+	showSettings     bool
+	settingsCursor   int
+	settingsInputs   [2]textinput.Model
+	settingsModelIdx int
+	settingsMsg      string
 
 	statusMsg string
 	loading   bool
@@ -92,7 +93,7 @@ type roleplayMessage struct {
 func NewModel(config *core.Config) Model {
 	weekPath := storage.CurrentWeekPath()
 	s := storage.NewFileStorage(config.DataDir)
-	g := gemini.NewClient()
+	g := gemini.NewClientWithConfig(config.GeminiAPIKey, config.GeminiModel)
 
 	weeks, _ := s.ListWeeks()
 	if len(weeks) == 0 {
@@ -285,6 +286,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.showSettings = true
 		m.settingsInputs = newSettingsInputs(m.config)
 		m.settingsCursor = 0
+		m.settingsModelIdx = modelIndex(m.config.GeminiModel)
 		m.settingsMsg = ""
 
 	case "1":
@@ -401,13 +403,16 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 	}
 	switch m.activeStep {
 	case core.StepIdea:
-		if m.ideaInput == "" {
+		input := m.ideaInput
+		if input == "" {
+			input = m.ideaResponse
+		}
+		if input == "" {
 			m.statusMsg = "Press 'i' to enter topic first"
 			return m, nil
 		}
 		m.loading = true
 		m.statusMsg = "Generating topic..."
-		input := m.ideaInput
 		g := m.gemini
 		return m, func() tea.Msg {
 			content, err := g.GenerateTopicFromJapanese(input)

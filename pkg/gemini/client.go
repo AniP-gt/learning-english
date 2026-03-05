@@ -11,21 +11,46 @@ import (
 )
 
 const (
-	baseURL   = "https://generativelanguage.googleapis.com/v1beta/models"
-	modelName = "gemini-2.5-flash-preview-09-2025"
-	maxRetry  = 5
+	baseURL  = "https://generativelanguage.googleapis.com/v1beta/models"
+	maxRetry = 5
 )
 
 type Client struct {
 	apiKey     string
+	modelName  string
 	httpClient *http.Client
 }
 
 func NewClient() *Client {
 	return &Client{
 		apiKey:     os.Getenv("GEMINI_API_KEY"),
+		modelName:  "gemini-2.5-flash",
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
+}
+
+func NewClientWithConfig(apiKey, model string) *Client {
+	if apiKey == "" {
+		apiKey = os.Getenv("GEMINI_API_KEY")
+	}
+	if model == "" {
+		model = "gemini-2.5-flash"
+	}
+	return &Client{
+		apiKey:     apiKey,
+		modelName:  model,
+		httpClient: &http.Client{Timeout: 60 * time.Second},
+	}
+}
+
+func (c *Client) SetModel(model string) {
+	if model != "" {
+		c.modelName = model
+	}
+}
+
+func (c *Client) SetAPIKey(key string) {
+	c.apiKey = key
 }
 
 func (c *Client) HasAPIKey() bool {
@@ -68,7 +93,7 @@ func (c *Client) generate(prompt string) (string, error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, modelName, c.apiKey)
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, c.modelName, c.apiKey)
 
 	var lastErr error
 	for attempt := 0; attempt < maxRetry; attempt++ {
