@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -53,11 +54,24 @@ func (m Model) renderIdeaStep(width, height int) string {
 func (m Model) renderWordsStep(width, height int) string {
 	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — 単語帳作成")
 
+	if m.flashcardMode {
+		return m.renderFlashcardMode(width, height)
+	}
+
 	var content string
 	if m.wordsLoading {
 		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini が単語リストを生成中...")
 	} else if m.words != "" {
-		content = styleContentBox.Width(width - 8).Render(m.words)
+		var hint string
+		if len(m.parsedWords) > 0 {
+			hint = styleHint.Render(fmt.Sprintf("g: 再生成 | f: フラッシュカードモード (%d 単語)", len(m.parsedWords)))
+		} else {
+			hint = styleHint.Render("g: 再生成")
+		}
+		content = lipgloss.JoinVertical(lipgloss.Left,
+			styleContentBox.Width(width-8).Render(m.words),
+			hint,
+		)
 	} else {
 		content = lipgloss.JoinVertical(lipgloss.Left,
 			styleContentBox.Width(width-8).
@@ -77,4 +91,121 @@ func (m Model) renderWordsStep(width, height int) string {
 		Height(height).
 		Padding(1, 2).
 		Render(inner)
+}
+
+func (m Model) renderFlashcardMode(width, height int) string {
+	n := len(m.parsedWords)
+	if n == 0 {
+		return styleDimCenter.Width(width).Height(height).Render("単語がありません")
+	}
+
+	card := m.parsedWords[m.flashcardIndex]
+	checked := m.flashcardChecked[m.flashcardIndex]
+
+	checkedCount := 0
+	for _, c := range m.flashcardChecked {
+		if c {
+			checkedCount++
+		}
+	}
+
+	progressBar := buildProgressBar(m.flashcardChecked, width-8)
+
+	var checkMark string
+	if checked {
+		checkMark = lipgloss.NewStyle().Foreground(colorGreen).Bold(true).Render("✓ 覚えた!")
+	} else {
+		checkMark = lipgloss.NewStyle().Foreground(colorFgDim).Render("○ まだ")
+	}
+
+	counter := lipgloss.NewStyle().Foreground(colorFgDim).
+		Render(fmt.Sprintf("%d / %d  (覚えた: %d)", m.flashcardIndex+1, n, checkedCount))
+
+	var cardFace string
+	cardWidth := width - 12
+	if cardWidth < 20 {
+		cardWidth = 20
+	}
+
+	if !m.flashcardFlipped {
+		label := lipgloss.NewStyle().Foreground(colorFgDim).Italic(true).Render("English")
+		word := lipgloss.NewStyle().
+			Foreground(colorBlue).
+			Bold(true).
+			Width(cardWidth).
+			Align(lipgloss.Center).
+			Render(card.word)
+		cardFace = lipgloss.JoinVertical(lipgloss.Center, label, word)
+	} else {
+		label := lipgloss.NewStyle().Foreground(colorFgDim).Italic(true).Render("日本語")
+		trans := lipgloss.NewStyle().
+			Foreground(colorYellow).
+			Bold(true).
+			Width(cardWidth).
+			Align(lipgloss.Center).
+			Render(card.translation)
+		var ex string
+		if card.example != "" {
+			ex = lipgloss.NewStyle().
+				Foreground(colorFgDim).
+				Width(cardWidth).
+				Align(lipgloss.Center).
+				Render(card.example)
+		}
+		cardFace = lipgloss.JoinVertical(lipgloss.Center, label, trans, ex)
+	}
+
+	cardBorderColor := colorBorderAlt
+	if checked {
+		cardBorderColor = colorGreen
+	}
+
+	cardBox := lipgloss.NewStyle().
+		Background(colorBgHigher).
+		Foreground(colorFg).
+		Padding(2, 4).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(cardBorderColor).
+		Width(cardWidth).
+		Align(lipgloss.Center).
+		Render(cardFace)
+
+	hint := styleHint.Render("Space: 裏返す  ←/→: 前後  K: 覚えた  r: リセット  Esc: 戻る")
+
+	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — フラッシュカード")
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		lipgloss.NewStyle().Padding(1, 0).Render(
+			lipgloss.JoinVertical(lipgloss.Center,
+				counter,
+				lipgloss.NewStyle().Padding(1, 0).Render(cardBox),
+				checkMark,
+				lipgloss.NewStyle().PaddingTop(1).Render(progressBar),
+				lipgloss.NewStyle().PaddingTop(1).Render(hint),
+			),
+		),
+	)
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Padding(1, 2).
+		Render(inner)
+}
+
+func buildProgressBar(checked []bool, width int) string {
+	n := len(checked)
+	if n == 0 || width <= 0 {
+		return ""
+	}
+	bar := strings.Builder{}
+	for _, c := range checked {
+		if c {
+			bar.WriteString(lipgloss.NewStyle().Foreground(colorGreen).Render("█"))
+		} else {
+			bar.WriteString(lipgloss.NewStyle().Foreground(colorFgDim).Render("░"))
+		}
+	}
+	return bar.String()
 }

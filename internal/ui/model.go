@@ -43,6 +43,13 @@ type Model struct {
 	words        string
 	wordsLoading bool
 
+	// Flashcard mode
+	flashcardMode    bool
+	flashcardIndex   int
+	flashcardFlipped bool   // false = front (English), true = back (Japanese)
+	flashcardChecked []bool // checked[i] = true means "I know this card"
+	parsedWords      []flashcard
+
 	readingText   string
 	readingTimer  int
 	readingWPM    int
@@ -136,6 +143,8 @@ func NewModel(config *core.Config) Model {
 	}
 	if data, err := s.ReadFile(weekPath, "words.md"); err == nil {
 		m.words = string(data)
+		m.parsedWords = parseWordsMarkdown(m.words)
+		m.flashcardChecked = make([]bool, len(m.parsedWords))
 	}
 	if data, err := s.ReadFile(weekPath, "topic.md"); err == nil {
 		m.ideaResponse = string(data)
@@ -204,6 +213,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_ = m.storage.WriteFile(m.weekPath, "topic.md", []byte(msg.content))
 		case core.StepWords:
 			m.words = msg.content
+			m.parsedWords = parseWordsMarkdown(msg.content)
+			m.flashcardChecked = make([]bool, len(m.parsedWords))
+			m.flashcardIndex = 0
+			m.flashcardFlipped = false
 			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(msg.content))
 		case core.StepReading:
 			m.readingText = extractBodyFromMarkdown(msg.content)
@@ -255,6 +268,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 	if m.roleplayInputMode {
 		return m.handleRoleplayInput(msg)
+	}
+	if m.flashcardMode {
+		return m.handleFlashcardKey(msg)
 	}
 
 	if m.sidebarFocused {
@@ -362,6 +378,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.activeStep == core.StepRoleplay {
 			m.roleplayInputMode = true
 			m.roleplayInput = ""
+		}
+
+	case "f":
+		if m.activeStep == core.StepWords && len(m.parsedWords) > 0 {
+			m.flashcardMode = true
+			m.flashcardIndex = 0
+			m.flashcardFlipped = false
 		}
 
 	case "ctrl+s":
@@ -484,6 +507,11 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.readingTiming = false
 	m.readingLoaded = false
 	m.words = ""
+	m.parsedWords = nil
+	m.flashcardChecked = nil
+	m.flashcardIndex = 0
+	m.flashcardFlipped = false
+	m.flashcardMode = false
 	m.ideaResponse = ""
 	m.speechFeedback = ""
 	m.speechInput = ""
@@ -498,6 +526,8 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	}
 	if data, err := m.storage.ReadFile(wp, "words.md"); err == nil {
 		m.words = string(data)
+		m.parsedWords = parseWordsMarkdown(m.words)
+		m.flashcardChecked = make([]bool, len(m.parsedWords))
 	}
 	if data, err := m.storage.ReadFile(wp, "topic.md"); err == nil {
 		m.ideaResponse = string(data)
@@ -861,6 +891,9 @@ func (m Model) renderFooter() string {
 	}
 	if m.sidebarFocused {
 		mode = "SIDEBAR"
+	}
+	if m.flashcardMode {
+		mode = "FLASHCARD"
 	}
 
 	status := m.statusMsg
