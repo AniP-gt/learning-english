@@ -263,6 +263,33 @@ If the user makes grammar mistakes, occasionally and gently correct them.`, role
 	return c.generate(prompt)
 }
 
+type SpeechChatMessage struct {
+	Role    string
+	Content string
+}
+
+func (c *Client) SpeechChat(history []SpeechChatMessage, userMessage string) (string, error) {
+	systemPrompt := `You are a friendly English conversation partner helping someone practice speaking English.
+Respond naturally and conversationally in English (2-4 sentences).
+If the user makes grammar or vocabulary mistakes, gently correct them at the end of your reply with "💡 Tip: ...".
+Encourage the user and keep the conversation flowing.`
+
+	var sb bytes.Buffer
+	sb.WriteString(systemPrompt)
+	sb.WriteString("\n\n")
+
+	for _, msg := range history {
+		if msg.Role == "user" {
+			sb.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+		} else {
+			sb.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+		}
+	}
+	sb.WriteString(fmt.Sprintf("User: %s\nAssistant:", userMessage))
+
+	return c.generate(sb.String())
+}
+
 func (c *Client) TranscribeSpeech(audioData []byte) (string, error) {
 	return "", fmt.Errorf("audio transcription not yet implemented")
 }

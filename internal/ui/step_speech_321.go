@@ -14,45 +14,78 @@ import (
 )
 
 func (m Model) renderSpeechStep(width, height int) string {
-	title := styleStepTitle.Foreground(colorRed).Render("Step 5: Speech — 録音/STT")
+	title := styleStepTitle.Foreground(colorRed).Render("Step 5: Speech — Chat & Analysis")
+
+	chatHeight := height - 12
+	if chatHeight < 4 {
+		chatHeight = 4
+	}
+
+	var chatLines []string
+	for _, msg := range m.speechMessages {
+		if msg.role == "user" {
+			label := styleUserChat.Render("You: ")
+			text := lipgloss.NewStyle().Foreground(colorFg).Render(msg.content)
+			chatLines = append(chatLines, label+text)
+		} else {
+			label := styleAssistantChat.Render("Gemini: ")
+			text := lipgloss.NewStyle().Foreground(colorFg).Render(msg.content)
+			chatLines = append(chatLines, label+text)
+		}
+		chatLines = append(chatLines, "")
+	}
+
+	if m.speechLoading {
+		chatLines = append(chatLines, styleDimCenter.Render("⏳ Responding..."))
+	}
+
+	var chatContent string
+	if len(chatLines) == 0 {
+		chatContent = lipgloss.NewStyle().Foreground(colorFgDim).
+			Render("英語でメッセージを送るには 'i' を押してください。\n\nGeminiが会話相手になります。返答は自動で読み上げられます。\n's' でもう一度聴けます。'g' でスピーチ解析。")
+	} else {
+		totalLines := len(chatLines)
+		offset := m.speechScrollOffset
+		if offset > totalLines-1 {
+			offset = totalLines - 1
+		}
+		if offset < 0 {
+			offset = 0
+		}
+		visible := chatLines[offset:]
+		chatContent = lipgloss.JoinVertical(lipgloss.Left, visible...)
+	}
+
+	chatBox := lipgloss.NewStyle().
+		Background(colorBgMid).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderAlt).
+		Padding(1, 2).
+		Width(width - 8).
+		Height(chatHeight).
+		Render(chatContent)
 
 	var inputSection string
-	if m.speechInputMode {
+	if m.speechChatInputMode {
 		inputSection = styleInput.Width(width - 8).Render(
-			"スピーチテキストを入力してください:\n\n> " + m.speechInput + "█",
-		)
-	} else if m.speechInput != "" {
-		inputSection = styleContentBox.Width(width - 8).Render(
-			lipgloss.NewStyle().Foreground(colorGreen).Bold(true).Render("Your Speech:") +
-				"\n\n" + m.speechInput,
+			"> " + m.speechChatInput + "█",
 		)
 	} else {
-		inputSection = styleContentBox.Width(width - 8).
+		placeholder := lipgloss.NewStyle().
+			Background(colorBgDark).
 			Foreground(colorFgDim).
-			Render("スピーチテキストを入力するか、音声録音機能を使用してください。\n\n'i' を押してテキスト入力を開始してください。")
+			Padding(0, 2).
+			Width(width - 8).
+			Render("Press 'i' to type your message...")
+		inputSection = placeholder
 	}
 
-	var feedbackSection string
-	if m.speechLoading {
-		feedbackSection = styleDimCenter.Width(width - 4).Render("⏳ Gemini が解析中...")
-	} else if m.speechFeedback != "" {
-		feedbackSection = lipgloss.NewStyle().PaddingTop(1).Render(
-			styleContentBox.
-				Width(width - 8).
-				BorderForeground(colorGreen).
-				Render(
-					lipgloss.NewStyle().Foreground(colorGreen).Bold(true).Render("Gemini Feedback:") +
-						"\n\n" + m.speechFeedback,
-				),
-		)
-	}
-
-	hint := styleHint.Render("i: テキスト入力 | g: Gemini解析 | Enter: 確定")
+	hint := styleHint.Render("i: 入力 | Enter: 送信 | s: 再生 | g: スピーチ解析 | j/k: スクロール | Esc: キャンセル")
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
+		lipgloss.NewStyle().PaddingTop(1).Render(chatBox),
 		lipgloss.NewStyle().PaddingTop(1).Render(inputSection),
-		feedbackSection,
 		lipgloss.NewStyle().PaddingTop(1).Render(hint),
 	)
 
