@@ -556,8 +556,21 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			imgBytes, mimeType, err := g.GenerateImageForScene(text)
 			if err != nil {
-				return imageGenMsg{err: err}
+				// Image generation failed — fall back to text-based scene description
+				sceneText, sceneErr := g.GenerateImageScene(text)
+				if sceneErr != nil {
+					// Both image and text fallback failed
+					return imageGenMsg{err: fmt.Errorf("image generation error: %v; fallback text error: %v", err, sceneErr)}
+				}
+				// Save the text fallback as scene_321.txt so users can inspect it later
+				txtName := "scene_321.txt"
+				if saveErr := s.WriteFile(wp, txtName, []byte(sceneText)); saveErr != nil {
+					return imageGenMsg{err: saveErr}
+				}
+				// Also return the text as a normal Gemini response so the UI shows it immediately
+				return geminiResponseMsg{content: sceneText, err: nil}
 			}
+
 			ext := ".png"
 			if mimeType == "image/jpeg" {
 				ext = ".jpg"
