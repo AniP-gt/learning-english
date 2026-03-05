@@ -553,10 +553,10 @@ func (m Model) createNewWeek() (Model, tea.Cmd) {
 }
 
 func (m Model) handleIdeaInput(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	switch msg.Type {
+	case tea.KeyEsc:
 		m.ideaMode = false
-	case "enter":
+	case tea.KeyEnter:
 		if m.ideaInput != "" {
 			m.ideaMode = false
 			if m.gemini.HasAPIKey() {
@@ -570,43 +570,41 @@ func (m Model) handleIdeaInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 		}
-	case "backspace":
-		if len(m.ideaInput) > 0 {
-			m.ideaInput = m.ideaInput[:len(m.ideaInput)-1]
+	case tea.KeyBackspace:
+		runes := []rune(m.ideaInput)
+		if len(runes) > 0 {
+			m.ideaInput = string(runes[:len(runes)-1])
 		}
-	default:
-		if len(msg.String()) == 1 || msg.String() == " " {
-			m.ideaInput += msg.String()
-		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.ideaInput += string(msg.Runes)
 	}
 	return m, nil
 }
 
 func (m Model) handleSpeechInput(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	switch msg.Type {
+	case tea.KeyEsc:
 		m.speechInputMode = false
-	case "enter":
+	case tea.KeyEnter:
 		if m.speechInput != "" {
 			m.speechInputMode = false
 		}
-	case "backspace":
-		if len(m.speechInput) > 0 {
-			m.speechInput = m.speechInput[:len(m.speechInput)-1]
+	case tea.KeyBackspace:
+		runes := []rune(m.speechInput)
+		if len(runes) > 0 {
+			m.speechInput = string(runes[:len(runes)-1])
 		}
-	default:
-		if len(msg.String()) == 1 || msg.String() == " " {
-			m.speechInput += msg.String()
-		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.speechInput += string(msg.Runes)
 	}
 	return m, nil
 }
 
 func (m Model) handleRoleplayInput(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	switch msg.Type {
+	case tea.KeyEsc:
 		m.roleplayInputMode = false
-	case "enter":
+	case tea.KeyEnter:
 		if m.roleplayInput != "" && m.gemini.HasAPIKey() {
 			userMsg := m.roleplayInput
 			m.roleplayMessages = append(m.roleplayMessages, roleplayMessage{
@@ -632,14 +630,13 @@ func (m Model) handleRoleplayInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.roleplayInputMode = false
 			m.statusMsg = "GEMINI_API_KEY not set"
 		}
-	case "backspace":
-		if len(m.roleplayInput) > 0 {
-			m.roleplayInput = m.roleplayInput[:len(m.roleplayInput)-1]
+	case tea.KeyBackspace:
+		runes := []rune(m.roleplayInput)
+		if len(runes) > 0 {
+			m.roleplayInput = string(runes[:len(runes)-1])
 		}
-	default:
-		if len(msg.String()) == 1 || msg.String() == " " {
-			m.roleplayInput += msg.String()
-		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.roleplayInput += string(msg.Runes)
 	}
 	return m, nil
 }
