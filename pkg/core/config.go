@@ -9,6 +9,7 @@ import (
 )
 
 const DefaultGeminiModel = "gemini-2.5-flash"
+const DefaultCEFRLevel = "B1"
 
 var AvailableGeminiModels = []string{
 	"gemini-2.5-flash",
@@ -16,10 +17,13 @@ var AvailableGeminiModels = []string{
 	"gemini-2.5-flash-lite-preview-09-2025",
 }
 
+var AvailableCEFRLevels = []string{"A1", "A2", "B1", "B2", "C1", "C2"}
+
 type Config struct {
 	DataDir      string
 	GeminiAPIKey string
 	GeminiModel  string
+	CEFRLevel    string
 	GitEnabled   bool
 }
 
@@ -42,6 +46,7 @@ func LoadConfigWithFlags(dataDirFlag string) (*Config, error) {
 		DataDir:      filepath.Join(homeDir, "artifacts", "english-learning", "data"),
 		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
 		GeminiModel:  DefaultGeminiModel,
+		CEFRLevel:    DefaultCEFRLevel,
 		GitEnabled:   os.Getenv("GIT_ENABLED") == "true",
 	}
 
@@ -93,6 +98,8 @@ func loadTOML(path string, cfg *Config) error {
 			cfg.GeminiAPIKey = val
 		case "gemini_model":
 			cfg.GeminiModel = val
+		case "cefr_level":
+			cfg.CEFRLevel = val
 		case "git_enabled":
 			cfg.GitEnabled = val == "true"
 		}
@@ -116,8 +123,9 @@ func SaveConfig(cfg *Config) error {
 	content := fmt.Sprintf(`data_dir = "%s"
 gemini_api_key = "%s"
 gemini_model = "%s"
+cefr_level = "%s"
 git_enabled = "%v"
-`, cfg.DataDir, cfg.GeminiAPIKey, cfg.GeminiModel, cfg.GitEnabled)
+`, cfg.DataDir, cfg.GeminiAPIKey, cfg.GeminiModel, cfg.CEFRLevel, cfg.GitEnabled)
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
@@ -134,7 +142,8 @@ func WriteDefaultConfig() error {
 data_dir = "%s"
 gemini_api_key = ""
 gemini_model = "%s"
+cefr_level = "%s"
 git_enabled = "false"
-`, defaultDataDir, DefaultGeminiModel)
+`, defaultDataDir, DefaultGeminiModel, DefaultCEFRLevel)
 	return os.WriteFile(path, []byte(content), 0644)
 }

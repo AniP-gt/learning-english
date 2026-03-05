@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -159,32 +160,53 @@ func (c *Client) GenerateTopicFromJapanese(japaneseText string) (string, error) 
 	return c.generate(prompt)
 }
 
-func (c *Client) GenerateWords(topic string) (string, error) {
+func (c *Client) GenerateWords(topic string, cefrLevel string) (string, error) {
+	if cefrLevel == "" {
+		cefrLevel = "B1"
+	}
 	prompt := fmt.Sprintf(`以下のトピックに関連する英単語リストを作成してください。
 
 トピック: %s
+難易度 (CEFRレベル): %s
 
-以下のMarkdownテーブル形式で10-15単語を出力してください:
+%sレベルの学習者に適した語彙を選び、以下のMarkdownテーブル形式で10-15単語を出力してください:
 | Word | Translation | Example |
 |------|-------------|---------|
-| word | 日本語訳 | Example sentence using the word. |`, topic)
+| word | 日本語訳 | Example sentence using the word. |`, topic, cefrLevel, cefrLevel)
 
 	return c.generate(prompt)
 }
 
-func (c *Client) GenerateReading(topic string) (string, error) {
+func (c *Client) GenerateReading(topic string, cefrLevel string) (string, error) {
+	if cefrLevel == "" {
+		cefrLevel = "B1"
+	}
+
+	wordCountRange := map[string]string{
+		"A1": "80-100",
+		"A2": "100-130",
+		"B1": "150-180",
+		"B2": "180-220",
+		"C1": "220-270",
+		"C2": "270-320",
+	}
+	wc, ok := wordCountRange[cefrLevel]
+	if !ok {
+		wc = "150-180"
+	}
+
 	prompt := fmt.Sprintf(`以下のトピックに関連する英文を作成してください。WPM計測用の読解テキストです。
 
 トピック: %s
 
 要件:
-- CEFRレベル: B1-B2
-- 単語数: 150-200語
+- CEFRレベル: %s
+- 単語数: %s語
 - 自然な英語で書く
 - 複数の段落に分ける
 
-テキストの最初に # Reading と書き、次の行に CEFR: [レベル] | Words: [単語数] と書いてください。
-その後に本文を書いてください。`, topic)
+テキストの最初に # Reading と書き、次の行に CEFR: %s | Words: [実際の単語数] と書いてください。
+その後に本文を書いてください。`, topic, cefrLevel, wc, cefrLevel)
 
 	return c.generate(prompt)
 }
@@ -247,4 +269,120 @@ func (c *Client) TranscribeSpeech(audioData []byte) (string, error) {
 
 func (c *Client) GenerateImagePrompt(text string) (string, error) {
 	return c.GenerateImageScene(text)
+}
+
+type imageGenerateRequest struct {
+	Contents         []imageContent `json:"contents"`
+	GenerationConfig imageGenConfig `json:"generationConfig"`
+}
+
+type imageContent struct {
+	Parts []imagePart `json:"parts"`
+}
+
+type imagePart struct {
+	Text string `json:"text"`
+}
+
+type imageGenConfig struct {
+	ResponseModalities []string `json:"responseModalities"`
+}
+
+type imageGenerateResponse struct {
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text       string `json:"text"`
+				InlineData *struct {
+					MimeType string `json:"mimeType"`
+					Data     string `json:"data"`
+				} `json:"inlineData"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
+}
+
+func (c *Client) GenerateImage(prompt string) ([]byte, string, error) {
+	if c.apiKey == "" {
+		return nil, "", fmt.Errorf("GEMINI_API_KEY not set")
+	}
+
+	const imageModel = "gemini-2.5-flash-image"
+
+	reqBody := imageGenerateRequest{
+		Contents: []imageContent{{Parts: []imagePart{{Text: prompt}}}},
+		GenerationConfig: imageGenConfig{
+			ResponseModalities: []string{"IMAGE", "TEXT"},
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, "", err
+	}
+
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, imageModel, c.apiKey)
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetry; attempt++ {
+		if attempt > 0 {
+			wait := time.Duration(1<<uint(attempt)) * time.Second
+			time.Sleep(wait)
+		}
+
+		resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, "", err
+		}
+
+		if resp.StatusCode != 200 {
+			return nil, "", fmt.Errorf("image API error %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var result imageGenerateResponse
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, "", err
+		}
+
+		if len(result.Candidates) == 0 {
+			return nil, "", fmt.Errorf("empty response from image API")
+		}
+
+		for _, part := range result.Candidates[0].Content.Parts {
+			if part.InlineData != nil && part.InlineData.Data != "" {
+				imgBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if err != nil {
+					return nil, "", fmt.Errorf("failed to decode image data: %w", err)
+				}
+				return imgBytes, part.InlineData.MimeType, nil
+			}
+		}
+
+		return nil, "", fmt.Errorf("no image data in response")
+	}
+
+	return nil, "", fmt.Errorf("max retries exceeded: %w", lastErr)
+}
+
+func (c *Client) GenerateImageForScene(speechText string) ([]byte, string, error) {
+	promptText := fmt.Sprintf(`Create a single vivid, comic-book style illustration that captures the main scene described in the following speech. 
+The image should show the key moment with expressive characters and a clear setting.
+Keep the style colorful, friendly, and memorable — like a 4-panel manga splash frame.
+
+Speech content:
+%s`, speechText)
+
+	return c.GenerateImage(promptText)
 }

@@ -21,6 +21,20 @@ type geminiResponseMsg struct {
 	err     error
 }
 
+type imageGenMsg struct {
+	imgBytes  []byte
+	mimeType  string
+	savedPath string
+	err       error
+}
+
+type wordsReadingResponseMsg struct {
+	wordsContent   string
+	wordsErr       error
+	readingContent string
+	readingErr     error
+}
+
 type Model struct {
 	config      *core.Config
 	storage     *storage.FileStorage
@@ -68,6 +82,8 @@ type Model struct {
 
 	scene321        string
 	scene321Loading bool
+	image321Path    string
+	image321Preview string
 
 	roleplayMessages  []roleplayMessage
 	roleplayInput     string
@@ -79,6 +95,7 @@ type Model struct {
 	settingsCursor   int
 	settingsInputs   [2]textinput.Model
 	settingsModelIdx int
+	settingsCEFRIdx  int
 	settingsMsg      string
 
 	statusMsg string
@@ -150,6 +167,13 @@ func NewModel(config *core.Config) Model {
 	if data, err := s.ReadFile(weekPath, "topic.md"); err == nil {
 		m.ideaResponse = string(data)
 	}
+	for _, ext := range []string{".png", ".jpg"} {
+		filename := "scene_321" + ext
+		if s.FileExists(weekPath, filename) {
+			m.image321Path = s.GetWeekDir(weekPath) + "/" + filename
+			break
+		}
+	}
 
 	return m
 }
@@ -212,6 +236,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ideaResponse = msg.content
 			m.ideaMode = false
 			_ = m.storage.WriteFile(m.weekPath, "topic.md", []byte(msg.content))
+			if m.gemini.HasAPIKey() {
+				cefrLevel := m.config.CEFRLevel
+				if cefrLevel == "" {
+					cefrLevel = core.DefaultCEFRLevel
+				}
+				m.wordsLoading = true
+				m.statusMsg = "Generating words & reading..."
+				return m, m.generateWordsAndReading(msg.content, cefrLevel)
+			}
 		case core.StepWords:
 			m.words = msg.content
 			m.parsedWords = parseWordsMarkdown(msg.content)
@@ -238,6 +271,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.statusMsg = "Done."
+		return m, nil
+
+	case imageGenMsg:
+		m.scene321Loading = false
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Image generation error: %v", msg.err)
+			return m, nil
+		}
+		m.image321Path = msg.savedPath
+		m.image321Preview = renderTerminalImage(msg.savedPath, m.width-12, 20)
+		m.statusMsg = fmt.Sprintf("Image saved: %s", msg.savedPath)
+		return m, nil
+
+	case wordsReadingResponseMsg:
+		m.loading = false
+		errMsgs := []string{}
+		if msg.wordsErr != nil {
+			errMsgs = append(errMsgs, fmt.Sprintf("Words: %v", msg.wordsErr))
+		} else {
+			m.words = msg.wordsContent
+			m.parsedWords = parseWordsMarkdown(msg.wordsContent)
+			m.flashcardChecked = make([]bool, len(m.parsedWords))
+			m.flashcardIndex = 0
+			m.flashcardFlipped = false
+			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(msg.wordsContent))
+		}
+		if msg.readingErr != nil {
+			errMsgs = append(errMsgs, fmt.Sprintf("Reading: %v", msg.readingErr))
+		} else {
+			m.readingText = extractBodyFromMarkdown(msg.readingContent)
+			m.listeningText = m.readingText
+			m.readingLoaded = true
+			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.readingContent))
+		}
+		if len(errMsgs) > 0 {
+			m.statusMsg = fmt.Sprintf("Error: %s", strings.Join(errMsgs, " | "))
+		} else {
+			m.statusMsg = "Words & Reading generated."
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -287,6 +359,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.settingsInputs = newSettingsInputs(m.config)
 		m.settingsCursor = 0
 		m.settingsModelIdx = modelIndex(m.config.GeminiModel)
+		m.settingsCEFRIdx = cefrIndex(m.config.CEFRLevel)
 		m.settingsMsg = ""
 
 	case "1":
@@ -368,6 +441,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "g":
 		return m.handleGeminiAction()
 
+	case "r":
+		if m.activeStep == core.StepThreeTwoOne && m.image321Path != "" {
+			m.image321Preview = renderTerminalImage(m.image321Path, m.width-12, m.height-14)
+		}
+
 	case "i":
 		if m.activeStep == core.StepIdea {
 			m.ideaMode = true
@@ -401,6 +479,10 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 		m.statusMsg = "GEMINI_API_KEY not set"
 		return m, nil
 	}
+	cefrLevel := m.config.CEFRLevel
+	if cefrLevel == "" {
+		cefrLevel = core.DefaultCEFRLevel
+	}
 	switch m.activeStep {
 	case core.StepIdea:
 		input := m.ideaInput
@@ -428,7 +510,7 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 		topic := m.ideaResponse
 		g := m.gemini
 		return m, func() tea.Msg {
-			content, err := g.GenerateWords(topic)
+			content, err := g.GenerateWords(topic, cefrLevel)
 			return geminiResponseMsg{content: content, err: err}
 		}
 	case core.StepReading:
@@ -441,7 +523,7 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 		topic := m.ideaResponse
 		g := m.gemini
 		return m, func() tea.Msg {
-			content, err := g.GenerateReading(topic)
+			content, err := g.GenerateReading(topic, cefrLevel)
 			return geminiResponseMsg{content: content, err: err}
 		}
 	case core.StepSpeech:
@@ -463,18 +545,50 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 			return m, nil
 		}
 		m.scene321Loading = true
-		m.statusMsg = "Generating scene..."
+		m.statusMsg = "Generating image with Gemini 2.5 Flash Image..."
 		text := m.speechInput
 		if text == "" {
 			text = m.speechFeedback
 		}
 		g := m.gemini
+		s := m.storage
+		wp := m.weekPath
 		return m, func() tea.Msg {
-			content, err := g.GenerateImageScene(text)
-			return geminiResponseMsg{content: content, err: err}
+			imgBytes, mimeType, err := g.GenerateImageForScene(text)
+			if err != nil {
+				return imageGenMsg{err: err}
+			}
+			ext := ".png"
+			if mimeType == "image/jpeg" {
+				ext = ".jpg"
+			}
+			filename := "scene_321" + ext
+			if saveErr := s.WriteFile(wp, filename, imgBytes); saveErr != nil {
+				return imageGenMsg{err: saveErr}
+			}
+			savedPath := s.GetWeekDir(wp) + "/" + filename
+			return imageGenMsg{
+				imgBytes:  imgBytes,
+				mimeType:  mimeType,
+				savedPath: savedPath,
+			}
 		}
 	}
 	return m, nil
+}
+
+func (m Model) generateWordsAndReading(topic, cefrLevel string) tea.Cmd {
+	g := m.gemini
+	return func() tea.Msg {
+		wc, we := g.GenerateWords(topic, cefrLevel)
+		rc, re := g.GenerateReading(topic, cefrLevel)
+		return wordsReadingResponseMsg{
+			wordsContent:   wc,
+			wordsErr:       we,
+			readingContent: rc,
+			readingErr:     re,
+		}
+	}
 }
 
 func (m Model) handleSidebarNav(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -521,6 +635,8 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.speechFeedback = ""
 	m.speechInput = ""
 	m.scene321 = ""
+	m.image321Path = ""
+	m.image321Preview = ""
 	m.roleplayMessages = []roleplayMessage{}
 	m.statusMsg = fmt.Sprintf("Switched to %s", wp.Path())
 
@@ -539,6 +655,13 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	}
 	if data, err := m.storage.ReadFile(wp, "feedback.md"); err == nil {
 		m.speechFeedback = string(data)
+	}
+	for _, ext := range []string{".png", ".jpg"} {
+		filename := "scene_321" + ext
+		if m.storage.FileExists(wp, filename) {
+			m.image321Path = m.storage.GetWeekDir(wp) + "/" + filename
+			break
+		}
 	}
 
 	return m, nil
@@ -736,7 +859,7 @@ func (m Model) renderBody() string {
 }
 
 func (m Model) renderSidebar(width, height int) string {
-	files := []string{"topic.md", "words.md", "reading.md", "feedback.md"}
+	files := []string{"topic.md", "words.md", "reading.md", "feedback.md", "scene_321.png"}
 
 	headerStyle := lipgloss.NewStyle().
 		Foreground(colorBlue).

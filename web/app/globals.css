@@ -1,26 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --tokyo-bg: #1a1b26;
+  --tokyo-surface: #16161e;
+  --tokyo-border: #24283b;
+  --tokyo-ink: #a9b1d6;
+  --tokyo-accent-blue: #7aa2f7;
+  --tokyo-accent-yellow: #e0af68;
+  --tokyo-accent-green: #9ece6a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--tokyo-bg);
+  --color-foreground: var(--tokyo-ink);
+  --font-sans: var(--font-geist-mono);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background: var(--tokyo-bg);
+  color: var(--tokyo-ink);
+  font-family: var(--font-geist-mono), "JetBrains Mono", "IBM Plex Mono", monospace;
+}
+
+::selection {
+  background: rgba(122, 162, 247, 0.35);
+  color: #ffffff;
 }

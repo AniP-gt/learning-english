@@ -22,7 +22,13 @@ func (m Model) renderIdeaStep(width, height int) string {
 	} else if m.ideaResponse != "" {
 		responseBox := styleContentBox.Width(width - 8).Render(m.ideaResponse)
 		hint := styleHint.Render("i: 再入力 | g: Gemini再生成 | 2: Wordsへ進む")
-		content = lipgloss.JoinVertical(lipgloss.Left, responseBox, hint)
+		var extra string
+		if m.wordsLoading {
+			extra = styleDimCenter.Width(width - 4).Render("⏳ Words & Reading を生成中...")
+		} else if m.words != "" && m.readingLoaded {
+			extra = styleHint.Foreground(colorGreen).Render("✓ Words & Reading 生成済み")
+		}
+		content = lipgloss.JoinVertical(lipgloss.Left, responseBox, hint, extra)
 	} else {
 		hint := styleHint.Render("i: 日本語入力開始 | g: Gemini API (GEMINI_API_KEY必要)")
 		placeholder := styleContentBox.Width(width - 8).

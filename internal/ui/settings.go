@@ -13,27 +13,44 @@ import (
 )
 
 const (
-	settingsFieldCount = 3
+	settingsFieldCount = 4
 	settingsIdxDataDir = 0
 	settingsIdxAPIKey  = 1
 	settingsIdxModel   = 2
+	settingsIdxCEFR    = 3
 )
 
 var settingsLabels = [settingsFieldCount]string{
 	"Data Directory",
 	"Gemini API Key",
 	"Gemini Model",
+	"CEFR Level (難易度)",
 }
 
 var settingsKeys = [settingsFieldCount]string{
 	"data_dir",
 	"gemini_api_key",
 	"gemini_model",
+	"cefr_level",
 }
 
 func modelIndex(model string) int {
 	for i, m := range core.AvailableGeminiModels {
 		if m == model {
+			return i
+		}
+	}
+	return 0
+}
+
+func cefrIndex(level string) int {
+	for i, l := range core.AvailableCEFRLevels {
+		if l == level {
+			return i
+		}
+	}
+	for i, l := range core.AvailableCEFRLevels {
+		if l == "B1" {
 			return i
 		}
 	}
@@ -108,11 +125,21 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.settingsModelIdx = (m.settingsModelIdx - 1 + n) % n
 			return m, nil
 		}
+		if m.settingsCursor == settingsIdxCEFR {
+			n := len(core.AvailableCEFRLevels)
+			m.settingsCEFRIdx = (m.settingsCEFRIdx - 1 + n) % n
+			return m, nil
+		}
 
 	case "right", "l":
 		if m.settingsCursor == settingsIdxModel {
 			n := len(core.AvailableGeminiModels)
 			m.settingsModelIdx = (m.settingsModelIdx + 1) % n
+			return m, nil
+		}
+		if m.settingsCursor == settingsIdxCEFR {
+			n := len(core.AvailableCEFRLevels)
+			m.settingsCEFRIdx = (m.settingsCEFRIdx + 1) % n
 			return m, nil
 		}
 
@@ -132,6 +159,7 @@ func (m Model) saveSettings() (Model, tea.Cmd) {
 	m.config.DataDir = m.settingsInputs[settingsIdxDataDir].Value()
 	m.config.GeminiAPIKey = m.settingsInputs[settingsIdxAPIKey].Value()
 	m.config.GeminiModel = core.AvailableGeminiModels[m.settingsModelIdx]
+	m.config.CEFRLevel = core.AvailableCEFRLevels[m.settingsCEFRIdx]
 
 	if err := core.SaveConfig(m.config); err != nil {
 		m.settingsMsg = fmt.Sprintf("Error: %v", err)
@@ -195,6 +223,8 @@ func (m Model) renderSettings(width, height int) string {
 		var fieldBox string
 		if i == settingsIdxModel {
 			fieldBox = m.renderModelSelector(overlayWidth-8, isSelected, fieldBorderColor)
+		} else if i == settingsIdxCEFR {
+			fieldBox = m.renderCEFRSelector(overlayWidth-8, isSelected, fieldBorderColor)
 		} else {
 			fieldBox = lipgloss.NewStyle().
 				BorderStyle(lipgloss.NormalBorder()).
@@ -267,6 +297,53 @@ func (m Model) renderModelSelector(width int, isSelected bool, borderColor lipgl
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinVertical(lipgloss.Left, items...),
+		lipgloss.NewStyle().PaddingTop(1).Render(nav),
+	)
+
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(borderColor).
+		Padding(0, 1).
+		Width(width).
+		Render(inner)
+}
+
+func (m Model) renderCEFRSelector(width int, isSelected bool, borderColor lipgloss.Color) string {
+	levels := core.AvailableCEFRLevels
+	n := len(levels)
+
+	var items []string
+	for i, level := range levels {
+		desc := map[string]string{
+			"A1": "A1 入門",
+			"A2": "A2 初級",
+			"B1": "B1 中級",
+			"B2": "B2 中上級",
+			"C1": "C1 上級",
+			"C2": "C2 熟達",
+		}[level]
+		if i == m.settingsCEFRIdx {
+			s := lipgloss.NewStyle().
+				Foreground(colorBg).
+				Background(colorYellow).
+				Bold(true).
+				Padding(0, 1).
+				Render("● " + desc)
+			items = append(items, s)
+		} else {
+			s := lipgloss.NewStyle().
+				Foreground(colorFgDim).
+				Padding(0, 1).
+				Render("○ " + desc)
+			items = append(items, s)
+		}
+	}
+
+	nav := lipgloss.NewStyle().Foreground(colorFgDim).
+		Render(fmt.Sprintf("← %d/%d →", m.settingsCEFRIdx+1, n))
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.JoinHorizontal(lipgloss.Top, items...),
 		lipgloss.NewStyle().PaddingTop(1).Render(nav),
 	)
 
