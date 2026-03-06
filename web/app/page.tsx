@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CEFRLevel, GenerateAction } from "./types";
+import { CEFRLevel, GenerateAction, GenerateRequestPayload, ChatHistoryEntry } from "./types";
 
 const steps = [
   { id: 1, title: "1. Idea", caption: "日本語ネタ出し" },
@@ -13,9 +13,31 @@ const steps = [
   { id: 7, title: "7. Roleplay", caption: "Gemini Chat" },
 ];
 
-const fileTree = ["topic.md", "words.md", "reading.md", "feedback.md"];
-
 const cefrLevels: CEFRLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+const indicatorWidth = 100 / steps.length;
+
+const getCurrentWeekKey = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const weekNumber = Math.ceil(now.getDate() / 7);
+  return `${year}/${month}/week${weekNumber}`;
+};
+
+const formatWeekLabel = (week: string) => {
+  const [year, month, weekSuffix] = week.split("/");
+  if (!year || !month || !weekSuffix) {
+    return week;
+  }
+  return `${year} / ${month} / ${weekSuffix}`;
+};
+
+type SpeakVoice = {
+  name: string;
+  lang: string;
+  voiceURI: string;
+};
 
 type WordsTable = {
   headers: string[];
@@ -29,6 +51,13 @@ const parseTopicFromIdea = (text: string) => {
   }
   const fallback = text.split(/\r?\n/).find((line) => line.trim().length > 0);
   return fallback ? fallback.trim().slice(0, 40) : "";
+};
+
+const stripReadingHeader = (text: string): string => {
+  return text
+    .replace(/^#\s+Reading\s*\r?\n/, "")
+    .replace(/^CEFR:[^\r\n]*\r?\n/, "")
+    .trimStart();
 };
 
 const parseMarkdownTable = (markdown: string): WordsTable => {
@@ -90,6 +119,31 @@ export default function HomePage() {
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
   const [wpmResult, setWpmResult] = useState<number | null>(null);
+  const [speechText, setSpeechText] = useState("");
+  const [speechFeedback, setSpeechFeedback] = useState("");
+  const [speechLoading, setSpeechLoading] = useState(false);
+  const [speechError, setSpeechError] = useState("");
+  const [scenePrompt, setScenePrompt] = useState("");
+  const [sceneLoading, setSceneLoading] = useState(false);
+  const [sceneError, setSceneError] = useState("");
+  const [voices, setVoices] = useState<SpeakVoice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState("");
+  const [speechRate, setSpeechRate] = useState(1);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [listeningSupported, setListeningSupported] = useState(false);
+  const [weeks, setWeeks] = useState<string[]>([]);
+  const [weeksLoading, setWeeksLoading] = useState(true);
+  const [weeksError, setWeeksError] = useState("");
+  const [activeWeek, setActiveWeek] = useState<string | null>(null);
+  const [weekFilesLoading, setWeekFilesLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatHistoryEntry[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
 
   const wordsTable = useMemo(() => parseMarkdownTable(wordsOutput), [wordsOutput]);
   const wordsCount = wordsTable?.rows.length ?? 0;
@@ -99,9 +153,48 @@ export default function HomePage() {
     }
     return readingOutput.split(/\s+/).filter(Boolean).length;
   }, [readingOutput]);
+  const sceneSourceText = useMemo(() => {
+    const spoken = speechText.trim();
+    if (spoken) {
+      return spoken;
+    }
+    return readingOutput.trim();
+  }, [readingOutput, speechText]);
+  const hasUserMessage = chatHistory.some((message) => message.role === "user");
+
+  const loadWeekFiles = useCallback(async (week: string) => {
+    setWeekFilesLoading(true);
+    try {
+      const encoded = encodeURIComponent(week);
+      const res = await fetch(`/api/weeks/${encoded}/files`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json() as {
+        topic: string | null;
+        words: string | null;
+        reading: string | null;
+        feedback: string | null;
+      };
+      if (data.topic) {
+        setIdeaResponse(data.topic);
+        setTopicHeader(parseTopicFromIdea(data.topic));
+        setWordsStatus("idle");
+      }
+      if (data.words) {
+        setWordsOutput(data.words);
+        setWordsStatus("ready");
+      }
+      if (data.reading) {
+        setReadingOutput(stripReadingHeader(data.reading));
+        setReadingStatus("ready");
+        setDerivedStage("done");
+      }
+    } finally {
+      setWeekFilesLoading(false);
+    }
+  }, []);
 
   const sendGenerate = useCallback(
-    async (payload: { action: GenerateAction; input: string; cefrLevel?: CEFRLevel }) => {
+    async (payload: GenerateRequestPayload) => {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -151,7 +244,7 @@ export default function HomePage() {
       setReadingStatus("loading");
       try {
         const reading = await sendGenerate({ action: "reading", input: topic, cefrLevel });
-        setReadingOutput(reading);
+        setReadingOutput(stripReadingHeader(reading));
         setReadingStatus("ready");
         return reading;
       } catch (error) {
@@ -250,6 +343,118 @@ export default function HomePage() {
     setWpmResult(Math.round(readingWordCount / minutes));
   };
 
+  const handleSpeak = useCallback(() => {
+    if (!listeningSupported || !readingOutput || typeof window === "undefined") {
+      return;
+    }
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      return;
+    }
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(readingOutput);
+    const preferredVoice = voices.find((voice) => voice.voiceURI === selectedVoice);
+    if (preferredVoice) {
+      const available = synth.getVoices();
+      const match = available.find((candidate) => candidate.voiceURI === preferredVoice.voiceURI);
+      if (match) {
+        utterance.voice = match;
+      }
+    }
+    utterance.rate = Math.min(Math.max(speechRate, 0.5), 2);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    synth.speak(utterance);
+  }, [listeningSupported, readingOutput, selectedVoice, voices, speechRate]);
+
+  const handleAnalyzeSpeech = useCallback(async () => {
+    const trimmed = speechText.trim();
+    if (!trimmed) {
+      setSpeechError("音声テキストを入力してください。");
+      return;
+    }
+    setSpeechError("");
+    setSpeechLoading(true);
+    try {
+      const feedback = await sendGenerate({ action: "speech", input: trimmed, cefrLevel });
+      setSpeechFeedback(feedback);
+    } catch (error) {
+      setSpeechError(error instanceof Error ? error.message : "分析に失敗しました。");
+    } finally {
+      setSpeechLoading(false);
+    }
+  }, [cefrLevel, sendGenerate, speechText]);
+
+  const handleGenerateScene = useCallback(async () => {
+    const source = speechText.trim() || readingOutput.trim();
+    if (!source) {
+      setSceneError("SpeechかReadingのテキストが必要です。");
+      return;
+    }
+    setSceneError("");
+    setSceneLoading(true);
+    setScenePrompt("");
+    try {
+      const scene = await sendGenerate({ action: "image_prompt", input: source });
+      setScenePrompt(scene);
+    } catch (error) {
+      setSceneError(error instanceof Error ? error.message : "Scene を生成できませんでした。");
+    } finally {
+      setSceneLoading(false);
+    }
+  }, [readingOutput, sendGenerate, speechText]);
+
+  const handleSendChat = useCallback(async () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) {
+      setChatError("メッセージを入力してください。");
+      return;
+    }
+    setChatError("");
+    setChatLoading(true);
+    const userMessage: ChatHistoryEntry = { role: "user", content: trimmed };
+    const requestHistory = [...chatHistory, userMessage];
+    try {
+      const reply = await sendGenerate({
+        action: "chat",
+        input: trimmed,
+        cefrLevel,
+        history: requestHistory,
+      });
+      setChatHistory([...requestHistory, { role: "assistant", content: reply }]);
+      setChatInput("");
+      setFeedbackMessage("");
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "送信に失敗しました。");
+    } finally {
+      setChatLoading(false);
+    }
+  }, [cefrLevel, chatHistory, chatInput, sendGenerate]);
+
+  const handleRequestFeedback = useCallback(async () => {
+    const lastUser = [...chatHistory].reverse().find((item) => item.role === "user");
+    if (!lastUser) {
+      setFeedbackError("先にユーザーの発言を送信してください。");
+      return;
+    }
+    setFeedbackError("");
+    setFeedbackLoading(true);
+    try {
+      const feedback = await sendGenerate({
+        action: "feedback",
+        input: lastUser.content,
+        cefrLevel,
+        history: chatHistory,
+      });
+      setFeedbackMessage(feedback);
+    } catch (error) {
+      setFeedbackError(error instanceof Error ? error.message : "フィードバックを取得できませんでした。");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [cefrLevel, chatHistory, sendGenerate]);
+
   useEffect(() => {
     const storedKey = localStorage.getItem("learning-api-key");
     const storedLevel = localStorage.getItem("learning-cefr-level") as CEFRLevel | null;
@@ -286,6 +491,81 @@ export default function HomePage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeStep, ideaLoading, handleGenerateTopic]);
 
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const supported = "speechSynthesis" in window;
+    setListeningSupported(supported);
+    if (!supported) {
+      return;
+    }
+    const synthesizer = window.speechSynthesis;
+    if (!synthesizer) {
+      return;
+    }
+    const loadVoices = () => {
+      const available = synthesizer.getVoices();
+      const englishVoices = available.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
+      const preferred = englishVoices.length ? englishVoices : available;
+      const normalized = preferred.map((voice) => ({
+        name: voice.name,
+        lang: voice.lang,
+        voiceURI: voice.voiceURI,
+      }));
+      setVoices(normalized);
+      setSelectedVoice((prev) => prev || normalized[0]?.voiceURI || "");
+    };
+    loadVoices();
+    synthesizer.addEventListener("voiceschanged", loadVoices);
+    return () => {
+      synthesizer.removeEventListener("voiceschanged", loadVoices);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchWeeks = async () => {
+      setWeeksError("");
+      try {
+        const response = await fetch("/api/weeks", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Unable to fetch weeks");
+        }
+        const data = (await response.json()) as { weeks?: string[] };
+        if (cancelled) {
+          return;
+        }
+        const fetchedWeeks = Array.isArray(data.weeks) ? data.weeks : [];
+        setWeeks(fetchedWeeks);
+        let initialWeek: string | null = null;
+        if (fetchedWeeks.includes(currentWeekKey)) {
+          initialWeek = currentWeekKey;
+        } else if (fetchedWeeks.length > 0) {
+          initialWeek = fetchedWeeks[0];
+        }
+        if (initialWeek) {
+          setActiveWeek(initialWeek);
+          void loadWeekFiles(initialWeek);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setWeeksError("Unable to load weekly history.");
+      } finally {
+        if (!cancelled) {
+          setWeeksLoading(false);
+        }
+      }
+    };
+    void fetchWeeks();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentWeekKey, loadWeekFiles]);
+
   const saveSettings = () => {
     localStorage.setItem("learning-api-key", apiKey);
     localStorage.setItem("learning-cefr-level", cefrLevel);
@@ -298,19 +578,57 @@ export default function HomePage() {
       <aside className="w-72 border-r border-[#24283b] bg-[#16161e] px-4 py-6">
         <div className="text-xs uppercase text-[#7aa2f7] tracking-[0.3em]">workspace</div>
         <div className="mt-5 text-sm text-[#e0af68]">eng-learning</div>
-        <div className="mt-6 space-y-2 text-sm">
-          <div className="flex items-center gap-2 text-[#9ece6a]">
-            <span className="h-2 w-2 rounded-full bg-[#9ece6a]" /> root
-          </div>
-          <div className="ml-4 space-y-1">
-            {fileTree.map((file) => (
-              <div key={file} className="flex items-center gap-2 rounded px-3 py-1 text-[#a9b1d6] hover:text-white">
-                <span className="h-2 w-2 rounded-full bg-[#7aa2f7]" /> {file}
-              </div>
-            ))}
-          </div>
+        <div className="mt-6 flex items-center gap-2 text-sm text-[#9ece6a]">
+          <span className="h-2 w-2 rounded-full bg-[#9ece6a]" /> root
+          <span className="text-[10px] uppercase tracking-[0.3em] text-[#5b647b]">weekly</span>
         </div>
-        <div className="mt-8 text-[10px] uppercase tracking-[0.3em] text-[#5b647b]">status</div>
+        <div className="mt-6 text-[10px] uppercase tracking-[0.3em] text-[#5b647b]">weekly history</div>
+        <div className="mt-3 flex flex-col gap-2 text-sm">
+          {weeksLoading ? (
+            <div className="rounded border border-[#24283b] bg-[#1f2335] px-3 py-2 text-[11px] text-[#5b647b]">LOADING…</div>
+          ) : weeks.length === 0 ? (
+            <div className="rounded border border-[#24283b] bg-[#1f2335] px-3 py-2 text-[11px] text-[#5b647b]">
+              No weeks recorded yet
+            </div>
+          ) : (
+            weeks.map((week) => (
+              <button
+                key={week}
+                type="button"
+                onClick={() => {
+                    setActiveWeek(week);
+                    void loadWeekFiles(week);
+                  }}
+                className={`flex items-center justify-between rounded px-3 py-2 text-left text-[13px] uppercase tracking-[0.15em] transition ${
+                  activeWeek === week
+                    ? "bg-[#7aa2f7]/20 text-white"
+                    : "text-[#a9b1d6] hover:bg-[#24283b]"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      week === currentWeekKey ? "bg-[#9ece6a]" : "bg-[#7aa2f7]"
+                    }`}
+                  />
+                  <span className="text-[12px] font-semibold tracking-[0.3em]">
+                    {formatWeekLabel(week)}
+                  </span>
+                </div>
+                {week === currentWeekKey && (
+                  <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-2 py-0.5 text-[9px] tracking-[0.3em] text-[#9ece6a]">
+                    This Week
+                  </span>
+                )}
+                {activeWeek === week && weekFilesLoading && (
+                  <span className="h-2 w-2 animate-spin rounded-full border border-[#7aa2f7] border-t-transparent" />
+                )}
+              </button>
+            ))
+          )}
+        </div>
+        {weeksError && <p className="mt-3 text-[11px] text-[#f7768e]">{weeksError}</p>}
+        <div className="mt-6 text-[10px] uppercase tracking-[0.3em] text-[#5b647b]">status</div>
         <div className="mt-2 text-[11px] text-[#a9b1d6]">Synced · GPT & TUI</div>
       </aside>
 
@@ -331,13 +649,13 @@ export default function HomePage() {
           </div>
         </header>
 
-        <nav className="flex border-b border-[#24283b] bg-[#16161e] p-1">
+        <nav className="relative flex border-b border-[#24283b] bg-[#16161e] p-1">
           {steps.map((step) => (
             <button
               key={step.id}
               type="button"
               onClick={() => setActiveStep(step.id)}
-              className={`flex-1 rounded px-3 py-2 text-[10px] uppercase tracking-[0.3em] transition ${
+              className={`relative z-10 flex-1 rounded px-3 py-2 text-[10px] uppercase tracking-[0.3em] transition ${
                 activeStep === step.id
                   ? "bg-[#7aa2f7] text-[#1a1b26] shadow-[0_5px_20px_rgba(122,162,247,0.5)]"
                   : "text-[#5b647b] hover:bg-[#24283b]"
@@ -347,11 +665,18 @@ export default function HomePage() {
               <span className="sm:hidden">{step.id}</span>
             </button>
           ))}
+          <div
+            className="tab-indicator"
+            style={{
+              left: `${indicatorWidth * (activeStep - 1)}%`,
+              width: `${indicatorWidth}%`,
+            }}
+          />
         </nav>
 
         <main className="flex-1 overflow-y-auto p-8">
           {activeStep === 1 && (
-            <section className="space-y-6">
+            <section className="space-y-6 step-section">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 1 · Idea</p>
@@ -415,7 +740,7 @@ export default function HomePage() {
           )}
 
           {activeStep === 2 && (
-            <section className="space-y-6">
+            <section className="space-y-6 step-section">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 2 · Words</p>
@@ -467,7 +792,7 @@ export default function HomePage() {
           )}
 
           {activeStep === 3 && (
-            <section className="space-y-6">
+            <section className="space-y-6 step-section">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 3 · Reading</p>
@@ -533,11 +858,287 @@ export default function HomePage() {
             </section>
           )}
 
-          {activeStep > 3 && (
-            <section className="flex h-60 items-center justify-center rounded border border-[#24283b] bg-[#141724] text-center text-sm text-[#5b647b]">
-              <p>Steps {activeStep}〜7 are coming soon. Focus on Steps 1-3 for now.</p>
+          {activeStep === 4 && (
+            <section className="space-y-6 step-section">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 4 · Listening</p>
+                  <h2 className="text-3xl font-bold text-[#7aa2f7]">Say it aloud</h2>
+                </div>
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[#9ece6a]">Web Speech</span>
+                  {listeningSupported ? (
+                    <span className="text-[#9ece6a]">{isSpeaking ? "Speaking…" : "Ready to read"}</span>
+                  ) : (
+                    <span className="text-[#f7768e]">Speech API unavailable</span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded border border-[#24283b] bg-[#141724] p-4">
+                <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Reading Text</p>
+                <div className="mt-3 h-44 overflow-y-auto rounded border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
+                  {readingOutput ? (
+                    <pre className="whitespace-pre-wrap">{readingOutput}</pre>
+                  ) : (
+                    <span className="text-[12px] text-[#5b647b]">Steps 1-3 must be complete before listening.</span>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="rounded border border-[#24283b] bg-[#16161e] p-4 text-sm text-[#cdd6f4]">
+                  <span className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Voice</span>
+                  <select
+                    value={selectedVoice}
+                    onChange={(event) => setSelectedVoice(event.target.value)}
+                    disabled={!voices.length}
+                    className="mt-3 w-full rounded border border-[#24283b] bg-[#0f111a] px-3 py-2 text-[13px] text-[#cdd6f4] focus:border-[#7aa2f7]"
+                  >
+                    {voices.length === 0 ? (
+                      <option value="">No English voices found</option>
+                    ) : (
+                      voices.map((voice) => (
+                        <option key={voice.voiceURI} value={voice.voiceURI}>
+                          {voice.name} ({voice.lang})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
+                <label className="rounded border border-[#24283b] bg-[#16161e] p-4 text-sm text-[#cdd6f4]">
+                  <span className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Speed {speechRate.toFixed(1)}x</span>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2}
+                    step={0.1}
+                    value={speechRate}
+                    onChange={(event) => setSpeechRate(Number(event.target.value))}
+                    className="mt-3 w-full accent-[#7aa2f7]"
+                  />
+                  <div className="mt-2 text-[11px] text-[#5b647b]">Adjust to mirror natural pace.</div>
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSpeak}
+                  disabled={!readingOutput || !listeningSupported || voices.length === 0}
+                  className="flex items-center gap-2 rounded-full bg-[#9ece6a] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {isSpeaking ? (
+                    <>
+                      <span className="spinner" />
+                      Speaking…
+                    </>
+                  ) : (
+                    "Speak"
+                  )}
+                </button>
+                <div className="text-[11px] text-[#5b647b]">
+                  {listeningSupported ? (
+                    <span className="flex items-center gap-2">
+                      {isSpeaking ? (
+                        <>
+                          <span className="pulse-indicator" aria-hidden="true" />
+                          Speaking now
+                        </>
+                      ) : (
+                        <>
+                          <span className="h-2 w-2 rounded-full bg-[#7aa2f7]" aria-hidden="true" />
+                          Ready to read
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-[#f7768e]">Speech synthesis unsupported</span>
+                  )}
+                </div>
+              </div>
             </section>
           )}
+
+          {activeStep === 5 && (
+            <section className="space-y-6 step-section">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 5 · Speech</p>
+                  <h2 className="text-3xl font-bold text-[#e0af68]">Transcribe & refine</h2>
+                </div>
+                <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#7aa2f7]">
+                  CEFR {cefrLevel}
+                </span>
+              </div>
+              <div className="rounded border border-[#24283b] bg-[#141724] p-4">
+                <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Speech text</p>
+                <textarea
+                  value={speechText}
+                  onChange={(event) => setSpeechText(event.target.value)}
+                  rows={5}
+                  placeholder="Type or paste what you spoke in English."
+                  className="mt-3 w-full rounded border border-[#24283b] bg-[#0f111a] px-3 py-2 text-sm leading-relaxed text-[#cdd6f4] focus:border-[#7aa2f7] focus:outline-none"
+                />
+              </div>
+              {speechError && <p className="text-[12px] text-[#f7768e]">{speechError}</p>}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleAnalyzeSpeech}
+                  disabled={speechLoading || !speechText.trim()}
+                  className="flex items-center gap-2 rounded-full bg-[#7aa2f7] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {speechLoading ? (
+                    <>
+                      <span className="spinner" />
+                      Analyzing…
+                    </>
+                  ) : (
+                    "Analyze with Gemini"
+                  )}
+                </button>
+                <span className="text-[11px] text-[#5b647b]">Grammar, phrasing, and score in one pass.</span>
+              </div>
+              {speechFeedback && (
+                <div className="rounded border border-[#24283b] bg-[#141724] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Gemini Feedback</p>
+                  <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#cdd6f4]">{speechFeedback}</pre>
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeStep === 6 && (
+            <section className="space-y-6 step-section">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 6 · 3-2-1</p>
+                  <h2 className="text-3xl font-bold text-[#bb9af7]">Visualize the scene</h2>
+                </div>
+                <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#cdd6f4]">
+                  Memory prompt
+                </span>
+              </div>
+              <div className="rounded border border-[#24283b] bg-[#16161e] p-4 text-[13px] text-[#cdd6f4]">
+                <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Source text</p>
+                <p className="mt-2 leading-relaxed text-[#cdd6f4]">
+                  {sceneSourceText || "Use Step 5 speech input or the reading text to seed the visualization."}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateScene}
+                  disabled={sceneLoading || !sceneSourceText}
+                  className="flex items-center gap-2 rounded-full bg-[#bb9af7] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {sceneLoading ? (
+                    <>
+                      <span className="spinner" />
+                      Generating…
+                    </>
+                  ) : (
+                    "Generate Image Prompt"
+                  )}
+                </button>
+                <span className="text-[11px] text-[#5b647b]">Gemini crafts a vivid scene for recall.</span>
+              </div>
+              {sceneError && <p className="text-[12px] text-[#f7768e]">{sceneError}</p>}
+              {scenePrompt && (
+                <div className="rounded border border-[#24283b] bg-[#141724] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">📸 Scene Description</p>
+                  <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#cdd6f4]">{scenePrompt}</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeStep === 7 && (
+            <section className="space-y-6 step-section">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 7 · Roleplay</p>
+                  <h2 className="text-3xl font-bold text-[#bb9af7]">Gemini chat lab</h2>
+                </div>
+                <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#bb9af7]">
+                  Live talk
+                </span>
+              </div>
+              <div className="h-72 overflow-y-auto rounded border border-[#24283b] bg-[#141724] p-4 text-sm">
+                {chatHistory.length === 0 ? (
+                  <p className="text-[12px] text-[#5b647b]">Send a message to start the roleplay.</p>
+                ) : (
+                  chatHistory.map((message, index) => (
+                    <div key={`${message.role}-${index}`} className="mb-3">
+                      <div
+                        className={`text-[10px] uppercase tracking-[0.3em] ${
+                          message.role === "user" ? "text-[#9ece6a]" : "text-[#bb9af7]"
+                        }`}
+                      >
+                        {message.role === "user" ? "You" : "Gemini"}
+                      </div>
+                      <div
+                        className={`mt-1 rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
+                          message.role === "user" ? "bg-[#1f2c1f] text-[#9ece6a]" : "bg-[#241c3a] text-[#bb9af7]"
+                        }`}
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {chatError && <p className="text-[12px] text-[#f7768e]">{chatError}</p>}
+              <div className="space-y-3">
+                <textarea
+                  rows={3}
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Chat with Gemini and ask for guidance."
+                  className="w-full rounded border border-[#24283b] bg-[#0f111a] px-3 py-2 text-sm text-[#cdd6f4] focus:border-[#7aa2f7] focus:outline-none"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSendChat}
+                    disabled={chatLoading}
+                    className="flex items-center gap-2 rounded-full bg-[#bb9af7] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
+                  >
+                    {chatLoading ? (
+                      <>
+                        <span className="spinner" />
+                        Sending…
+                      </>
+                    ) : (
+                      "Send"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRequestFeedback}
+                    disabled={feedbackLoading || !hasUserMessage}
+                    className="flex items-center gap-2 rounded-full border border-[#24283b] px-4 py-2 text-xs uppercase tracking-[0.3em] text-[#9ece6a] disabled:opacity-40"
+                  >
+                    {feedbackLoading ? (
+                      <>
+                        <span className="spinner" />
+                        Feedback
+                      </>
+                    ) : (
+                      "Get Feedback"
+                    )}
+                  </button>
+                  <span className="text-[11px] text-[#5b647b]">Feedback on your latest reply.</span>
+                </div>
+                {feedbackError && <p className="text-[12px] text-[#f7768e]">{feedbackError}</p>}
+                {feedbackMessage && (
+                  <div className="rounded border border-[#24283b] bg-[#1f2335] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
+                    <div className="text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">Feedback</div>
+                    <p className="mt-2 whitespace-pre-wrap">{feedbackMessage}</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
         </main>
 
         <footer className="flex items-center justify-between border-t border-[#24283b] bg-[#1f2335] px-6 py-2 text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">

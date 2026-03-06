@@ -1,20 +1,4 @@
 services:
-  tui:
-    build:
-      context: .
-      dockerfile: Dockerfile.tui
-    container_name: learning-english-tui
-    volumes:
-      - ./artifacts/english-learning:/data
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LEARNING_DATA_DIR=/data
-      - GIT_ENABLED=false
-    stdin_open: true
-    tty: true
-    networks:
-      - learning-net
-
   web:
     build:
       context: ./web
@@ -23,18 +7,12 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./artifacts/english-learning:/app/data:ro
-      - ./web:/app
-      - /app/node_modules
-      - /app/.next
+      - ${LEARNING_DATA_DIR}:/app/data:ro
+    env_file: .env
     environment:
       - NODE_ENV=development
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LEARNING_DATA_DIR=/app/data
     networks:
       - learning-net
-    depends_on:
-      - tui
 
 networks:
   learning-net:

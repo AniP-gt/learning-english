@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CEFRLevel, GenerateRequestPayload, GenerateAction } from "../../types";
+import { CEFRLevel, GenerateRequestPayload, ChatHistoryEntry } from "../../types";
 
 const MODEL_NAME = "gemini-2.5-flash";
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -73,10 +73,78 @@ const buildReadingPrompt = (topic: string, cefr: CEFRLevel) => {
 その後に本文を書いてください。`;
 };
 
-const promptBuilder: Record<GenerateAction, (input: string, cefr: CEFRLevel) => string> = {
-  topic: (input) => buildTopicPrompt(input),
-  words: (input, cefr) => buildWordsPrompt(input, cefr),
-  reading: (input, cefr) => buildReadingPrompt(input, cefr),
+const buildSpeechPrompt = (input: string, cefr: CEFRLevel) => {
+  return `あなたは英語教師です。以下の学習者のテキスト（CEFR ${cefr} レベル）に対して、文法の間違い、より自然な表現、そしてCEFRに沿ったスコアを丁寧に示してください。
+
+出力形式:
+# Grammar Corrections
+- 1. 修正例 (理由)
+
+# Natural Phrasing Suggestions
+- 1. 自然な言い換え (解説)
+
+# Score
+CEFR: ${cefr} | 10点満点での自然さスコア
+
+テキスト:
+${input}`;
+};
+
+const buildImagePrompt = (input: string) => {
+  return `あなたは記憶を助けるイメージトレーナーです。次の英語テキストから、色・光・音・匂いなど五感を使って、記憶に残るような1つの印象的な風景を描写してください。出力は1段落で、現実的かつ詩的なディテールを含めてください。
+
+発話:
+${input}`;
+};
+
+const formatHistory = (history: ChatHistoryEntry[]) => {
+  return history
+    .map((entry) => {
+      const prefix = entry.role === "user" ? "Learner" : "Assistant";
+      return `${prefix}: ${entry.content}`;
+    })
+    .join("\n");
+};
+
+const buildChatPrompt = (history: ChatHistoryEntry[], input: string) => {
+  const historyBlock = history.length ? `Conversation so far:\n${formatHistory(history)}\n` : "";
+  return `You are a patient English-speaking partner who helps learners practice natural dialogue. Keep your tone encouraging and concise.
+
+${historyBlock}Learner: ${input}
+Assistant:`;
+};
+
+const buildFeedbackPrompt = (input: string, cefr: CEFRLevel) => {
+  return `You are an empathetic English tutor. Review the following learner response with CEFR ${cefr} in mind.
+
+Response:
+${input}
+
+Provide:
+- Grammar corrections and why.
+- More natural paraphrases.
+- A brief scoring summary mentioning CEFR and a 1-10 fluency score.`;
+};
+
+const buildPrompt = (payload: GenerateRequestPayload, cefr: CEFRLevel) => {
+  switch (payload.action) {
+    case "topic":
+      return buildTopicPrompt(payload.input);
+    case "words":
+      return buildWordsPrompt(payload.input, cefr);
+    case "reading":
+      return buildReadingPrompt(payload.input, cefr);
+    case "speech":
+      return buildSpeechPrompt(payload.input, cefr);
+    case "image_prompt":
+      return buildImagePrompt(payload.input);
+    case "chat":
+      return buildChatPrompt(payload.history ?? [], payload.input);
+    case "feedback":
+      return buildFeedbackPrompt(payload.input, cefr);
+    default:
+      throw new Error("Unsupported action");
+  }
 };
 
 const createRequestBody = (prompt: string) => ({
@@ -101,17 +169,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "action and input are required" }, { status: 400 });
   }
 
-  if (!promptBuilder[action]) {
-    return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
-  }
-
   const sanitizedInput = input.trim();
   if (!sanitizedInput) {
     return NextResponse.json({ error: "Input cannot be empty" }, { status: 400 });
   }
 
   const cefr = normalizeCefr(cefrLevel);
-  const prompt = promptBuilder[action](sanitizedInput, cefr);
+  let prompt: string;
+  try {
+    prompt = buildPrompt({ ...body, input: sanitizedInput }, cefr);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
 
   const key = process.env.GEMINI_API_KEY ?? request.headers.get("x-api-key");
   if (!key) {

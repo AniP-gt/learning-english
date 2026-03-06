@@ -33,3 +33,62 @@ body {
   background: rgba(122, 162, 247, 0.35);
   color: #ffffff;
 }
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.3);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.step-section {
+  animation: fadeSlideIn 0.2s ease-out;
+}
+
+.tab-indicator {
+  position: absolute;
+  bottom: 0.25rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--tokyo-accent-yellow);
+  transition: left 0.3s ease, width 0.3s ease;
+}
+
+.pulse-indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--tokyo-accent-green);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--tokyo-accent-blue);
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
