@@ -394,6 +394,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "1":
 		m.activeStep = core.StepIdea
+		// ensure we are on current week and that markdown files exist when user
+		// switches to Step 1 (Idea). This makes starting today's study easier.
+		m = m.ensureCurrentWeekAndFiles()
 	case "2":
 		m.activeStep = core.StepWords
 	case "3":
@@ -562,6 +565,9 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 			m.statusMsg = "Press 'i' to enter topic first"
 			return m, nil
 		}
+		// Ensure current week/files available before generating so output is
+		// saved to the correct (current) week.
+		m = m.ensureCurrentWeekAndFiles()
 		m.loading = true
 		m.statusMsg = "Generating topic..."
 		g := m.gemini
@@ -679,6 +685,11 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleWordsEditKey is a minimal handler to avoid crashes when words edit
+// mode is active. A fuller implementation may exist elsewhere; provide a
+// safe stub that exits edit mode on Esc and otherwise no-ops.
+// (words edit handling implemented in flashcard.go)
+
 func (m Model) generateWordsAndReading(topic, cefrLevel string) tea.Cmd {
 	g := m.gemini
 	return func() tea.Msg {
@@ -787,6 +798,59 @@ func (m Model) createNewWeek() (Model, tea.Cmd) {
 	m.weeks = append([]core.WeekPath{wp}, m.weeks...)
 	m.sidebarCursor = 0
 	return m.switchWeek(wp)
+}
+
+// ensureCurrentWeekAndFiles switches the model to the current week (if not already)
+// and creates default markdown files for the week when they are missing. This
+// makes it easy to start the Idea step on the current week even if the week
+// directory did not previously exist.
+func (m Model) ensureCurrentWeekAndFiles() Model {
+	wp := storage.CurrentWeekPath()
+	// If not already on current week, switch to it so UI/path reflect the change.
+	if m.weekPath != wp {
+		// If current week isn't in the weeks list, prepend it so sidebar shows it.
+		found := false
+		for _, w := range m.weeks {
+			if w == wp {
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.weeks = append([]core.WeekPath{wp}, m.weeks...)
+			m.sidebarCursor = 0
+		}
+		m, _ = m.switchWeek(wp)
+	}
+
+	// Ensure the week directory exists
+	_ = m.storage.EnsureWeekDir(wp)
+
+	year := wp.Year
+	month := wp.Month
+	week := wp.Week
+
+	// templates similar to init.sh
+	topicT := fmt.Sprintf("# Topic — %04d/%02d/week%d\n\n## Japanese Input\n\n\n## Keywords\n\n\n## Summary\n", year, month, week)
+	wordsT := fmt.Sprintf("# Words — %04d/%02d/week%d\n\n| Word | Translation | Example |\n|------|-------------|---------|\n", year, month, week)
+	readingT := fmt.Sprintf("# Reading — %04d/%02d/week%d\n\nCEFR: %s | Words: 0\n\n", year, month, week, m.config.CEFRLevel)
+	feedbackT := fmt.Sprintf("# Feedback — %04d/%02d/week%d\n\n", year, month, week)
+
+	// Only create when missing
+	if !m.storage.FileExists(wp, "topic.md") {
+		_ = m.storage.WriteFile(wp, "topic.md", []byte(topicT))
+	}
+	if !m.storage.FileExists(wp, "words.md") {
+		_ = m.storage.WriteFile(wp, "words.md", []byte(wordsT))
+	}
+	if !m.storage.FileExists(wp, "reading.md") {
+		_ = m.storage.WriteFile(wp, "reading.md", []byte(readingT))
+	}
+	if !m.storage.FileExists(wp, "feedback.md") {
+		_ = m.storage.WriteFile(wp, "feedback.md", []byte(feedbackT))
+	}
+
+	return m
 }
 
 // commentForWPM returns an appropriate short comment for a WPM value.
