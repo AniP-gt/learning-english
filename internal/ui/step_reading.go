@@ -59,12 +59,18 @@ func (m Model) renderReadingStep(width, height int) string {
 
 	hint := styleHint.Render("g: Gemini でテキスト生成 | SPACE: タイマー開始/停止")
 
+	var wpmComment string
+	if m.readingComment != "" {
+		wpmComment = styleHint.Foreground(colorFgDim).Render(m.readingComment)
+	}
+
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		lipgloss.NewStyle().PaddingTop(1).Render(textBox),
 		lipgloss.NewStyle().PaddingTop(1).Render(statsRow),
 		lipgloss.NewStyle().PaddingTop(1).Render(timerBtn),
 		lipgloss.NewStyle().PaddingTop(1).Render(hint),
+		lipgloss.NewStyle().PaddingTop(1).Render(wpmComment),
 	)
 
 	return lipgloss.NewStyle().

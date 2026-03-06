@@ -24,9 +24,9 @@ func (s Step) String() string {
 		"2. Words (単語帳作成)",
 		"3. Reading (WPM計測)",
 		"4. Listening (say/WebTTS)",
-		"5. Speech (録音/STT)",
+		"5. Speech (スピーチ解析)",
 		"6. 3-2-1 (画像想起)",
-		"7. Roleplay (Gemini Chat)",
+		"7. Reply (チャット会話)",
 	}
 	if s < 1 || int(s) > len(names) {
 		return "Unknown"

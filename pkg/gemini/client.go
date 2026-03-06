@@ -290,6 +290,52 @@ Encourage the user and keep the conversation flowing.`
 	return c.generate(sb.String())
 }
 
+type ReplyChatMessage struct {
+	Role    string
+	Content string
+}
+
+func (c *Client) ReplyChat(history []ReplyChatMessage, userMessage string) (string, error) {
+	systemPrompt := `You are a friendly, encouraging English conversation partner helping someone practice spoken English.
+Respond naturally and conversationally in English (2-4 sentences).
+If the user makes grammar or vocabulary mistakes, gently correct them at the end of your reply with "💡 Tip: ...".
+Keep the conversation engaging and flowing.`
+
+	var sb bytes.Buffer
+	sb.WriteString(systemPrompt)
+	sb.WriteString("\n\n")
+
+	for _, msg := range history {
+		if msg.Role == "user" {
+			sb.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+		} else {
+			sb.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+		}
+	}
+	sb.WriteString(fmt.Sprintf("User: %s\nAssistant:", userMessage))
+
+	return c.generate(sb.String())
+}
+
+func (c *Client) FeedbackForReply(userMessage string) (string, error) {
+	prompt := fmt.Sprintf(`以下の英語メッセージに対して、英語学習者向けの簡潔なフィードバックを日本語で提供してください。
+
+メッセージ:
+%s
+
+以下の形式で出力してください:
+## 文法チェック
+[文法の問題点と修正案。問題なければ「問題なし」]
+
+## 語彙・表現
+[より自然な言い回しや語彙の提案]
+
+## 改善例
+[より自然な英文の例（1文）]`, userMessage)
+
+	return c.generate(prompt)
+}
+
 func (c *Client) TranscribeSpeech(audioData []byte) (string, error) {
 	return "", fmt.Errorf("audio transcription not yet implemented")
 }

@@ -35,6 +35,11 @@ type wordsReadingResponseMsg struct {
 	readingErr     error
 }
 
+type replyMessage struct {
+	role    string
+	content string
+}
+
 type Model struct {
 	config      *core.Config
 	storage     *storage.FileStorage
@@ -57,11 +62,10 @@ type Model struct {
 	words        string
 	wordsLoading bool
 
-	// Flashcard mode
 	flashcardMode    bool
 	flashcardIndex   int
-	flashcardFlipped bool   // false = front (English), true = back (Japanese)
-	flashcardChecked []bool // checked[i] = true means "I know this card"
+	flashcardFlipped bool
+	flashcardChecked []bool
 	parsedWords      []flashcard
 
 	readingText   string
@@ -70,31 +74,31 @@ type Model struct {
 	readingTiming bool
 	readingLoaded bool
 
+	readingComment string
+
 	listeningSpeed   int
 	listeningPlaying bool
 	listeningText    string
 
-	speechTranscript    string
-	speechFeedback      string
-	speechLoading       bool
-	speechInput         string
-	speechInputMode     bool
-	speechMessages      []speechMessage
-	speechChatInput     string
-	speechChatInputMode bool
-	speechLastAudio     string
-	speechScrollOffset  int
+	speechInput        string
+	speechInputMode    bool
+	speechFeedback     string
+	speechLoading      bool
+	speechScrollOffset int
 
 	scene321        string
 	scene321Loading bool
 	image321Path    string
 	image321Preview string
 
-	roleplayMessages  []roleplayMessage
-	roleplayInput     string
-	roleplayRole      string
-	roleplayInputMode bool
-	roleplayLoading   bool
+	replyMessages     []replyMessage
+	replyInput        string
+	replyInputMode    bool
+	replyLoading      bool
+	replyLastAudio    string
+	replyScrollOffset int
+	replyFeedback     string
+	replyFeedbackMode bool
 
 	showSettings     bool
 	settingsCursor   int
@@ -105,16 +109,6 @@ type Model struct {
 
 	statusMsg string
 	loading   bool
-}
-
-type roleplayMessage struct {
-	role    string
-	content string
-}
-
-type speechMessage struct {
-	role    string
-	content string
 }
 
 func NewModel(config *core.Config) Model {
@@ -147,20 +141,20 @@ func NewModel(config *core.Config) Model {
 	}
 
 	m := Model{
-		config:           config,
-		storage:          s,
-		gemini:           g,
-		weekPath:         weekPath,
-		weeks:            weeks,
-		sidebarCursor:    currentIdx,
-		activeStep:       core.StepIdea,
-		sidebarOpen:      true,
-		listeningSpeed:   180,
-		roleplayRole:     "a friendly barista from Melbourne, Australia",
-		roleplayMessages: []roleplayMessage{},
-		speechMessages:   []speechMessage{},
-		settingsInputs:   newSettingsInputs(config),
+		config:         config,
+		storage:        s,
+		gemini:         g,
+		weekPath:       weekPath,
+		weeks:          weeks,
+		sidebarCursor:  currentIdx,
+		activeStep:     core.StepIdea,
+		sidebarOpen:    true,
+		listeningSpeed: 180,
+		replyMessages:  []replyMessage{},
+		settingsInputs: newSettingsInputs(config),
 	}
+
+	m.readingComment = ""
 
 	m.readingText = "I love coffee. Every morning, I grind fresh beans and carefully measure the grounds. The rich aroma fills my kitchen and wakes me up better than any alarm clock. I prefer a light roast because I enjoy the bright acidity and subtle floral notes. The ritual of brewing has become an important part of my daily routine, giving me time to think and prepare for the day ahead."
 	m.listeningText = m.readingText
@@ -177,6 +171,9 @@ func NewModel(config *core.Config) Model {
 	}
 	if data, err := s.ReadFile(weekPath, "topic.md"); err == nil {
 		m.ideaResponse = string(data)
+	}
+	if data, err := s.ReadFile(weekPath, "feedback.md"); err == nil {
+		m.speechFeedback = string(data)
 	}
 	for _, ext := range []string{".png", ".jpg"} {
 		filename := "scene_321" + ext
@@ -236,7 +233,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.wordsLoading = false
 		m.scene321Loading = false
-		m.roleplayLoading = false
+		m.replyLoading = false
 		if msg.err != nil {
 			m.speechLoading = false
 			m.statusMsg = fmt.Sprintf("Error: %v", msg.err)
@@ -270,26 +267,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.content))
 		case core.StepSpeech:
 			m.speechLoading = false
+			m.speechFeedback = msg.content
+			m.speechScrollOffset = 0
+			_ = m.storage.WriteFile(m.weekPath, "feedback.md", []byte(msg.content))
+		case core.StepThreeTwoOne:
+			m.scene321 = msg.content
+		case core.StepRoleplay:
 			reply := msg.content
-			m.speechMessages = append(m.speechMessages, speechMessage{
+			if m.replyFeedbackMode {
+				m.replyFeedback = reply
+				m.replyFeedbackMode = false
+				m.statusMsg = "Done."
+				return m, nil
+			}
+			m.replyMessages = append(m.replyMessages, replyMessage{
 				role:    "assistant",
 				content: reply,
 			})
-			m.speechLastAudio = reply
-			m.speechFeedback = reply
-			_ = m.storage.WriteFile(m.weekPath, "feedback.md", []byte(reply))
+			m.replyLastAudio = reply
 			speed := m.listeningSpeed
 			return m, func() tea.Msg {
 				playSay(reply, speed)
 				return struct{}{}
 			}
-		case core.StepThreeTwoOne:
-			m.scene321 = msg.content
-		case core.StepRoleplay:
-			m.roleplayMessages = append(m.roleplayMessages, roleplayMessage{
-				role:    "assistant",
-				content: msg.content,
-			})
 		}
 		m.statusMsg = "Done."
 		return m, nil
@@ -357,11 +357,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.ideaMode {
 		return m.handleIdeaInput(msg)
 	}
-	if m.speechChatInputMode {
-		return m.handleSpeechChatInput(msg)
+	if m.speechInputMode {
+		return m.handleSpeechInput(msg)
 	}
-	if m.roleplayInputMode {
-		return m.handleRoleplayInput(msg)
+	if m.replyInputMode {
+		return m.handleReplyInput(msg)
 	}
 	if m.flashcardMode {
 		return m.handleFlashcardKey(msg)
@@ -422,10 +422,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					minutes := float64(m.readingTimer) / 60.0
 					if minutes > 0 {
 						m.readingWPM = int(float64(wordCount) / minutes)
+						// set reading comment based on WPM
+						m.readingComment = commentForWPM(m.readingWPM)
 					}
 				}
 				return m, nil
 			}
+
 			m.readingTimer = 0
 			m.readingWPM = 0
 			m.readingTiming = true
@@ -447,9 +450,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			} else {
 				m.listeningPlaying = false
 			}
-		case core.StepSpeech:
-			if m.speechLastAudio != "" {
-				audio := m.speechLastAudio
+		case core.StepRoleplay:
+			if m.replyLastAudio != "" {
+				audio := m.replyLastAudio
 				speed := m.listeningSpeed
 				return m, func() tea.Msg {
 					playSay(audio, speed)
@@ -459,14 +462,22 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 	case "j":
-		if m.activeStep == core.StepSpeech {
+		switch m.activeStep {
+		case core.StepSpeech:
 			m.speechScrollOffset++
+		case core.StepRoleplay:
+			m.replyScrollOffset++
 		}
 
 	case "k":
-		if m.activeStep == core.StepSpeech {
+		switch m.activeStep {
+		case core.StepSpeech:
 			if m.speechScrollOffset > 0 {
 				m.speechScrollOffset--
+			}
+		case core.StepRoleplay:
+			if m.replyScrollOffset > 0 {
+				m.replyScrollOffset--
 			}
 		}
 
@@ -494,12 +505,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.ideaInput = ""
 		}
 		if m.activeStep == core.StepSpeech {
-			m.speechChatInputMode = true
-			m.speechChatInput = ""
+			m.speechInputMode = true
+			m.speechInput = ""
 		}
 		if m.activeStep == core.StepRoleplay {
-			m.roleplayInputMode = true
-			m.roleplayInput = ""
+			m.replyInputMode = true
+			m.replyInput = ""
 		}
 
 	case "f":
@@ -569,26 +580,13 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 			return geminiResponseMsg{content: content, err: err}
 		}
 	case core.StepSpeech:
-		if m.speechChatInput == "" && len(m.speechMessages) == 0 {
-			m.statusMsg = "Press 'i' to enter message first"
-			return m, nil
-		}
-		lastUserMsg := m.speechChatInput
-		if lastUserMsg == "" {
-			for i := len(m.speechMessages) - 1; i >= 0; i-- {
-				if m.speechMessages[i].role == "user" {
-					lastUserMsg = m.speechMessages[i].content
-					break
-				}
-			}
-		}
-		if lastUserMsg == "" {
-			m.statusMsg = "No message to analyze"
+		if m.speechInput == "" {
+			m.statusMsg = "Press 'i' to enter your speech first"
 			return m, nil
 		}
 		m.speechLoading = true
 		m.statusMsg = "Analyzing speech..."
-		text := lastUserMsg
+		text := m.speechInput
 		g := m.gemini
 		return m, func() tea.Msg {
 			content, err := g.AnalyzeSpeech(text)
@@ -611,18 +609,14 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			imgBytes, mimeType, err := g.GenerateImageForScene(text)
 			if err != nil {
-				// Image generation failed — fall back to text-based scene description
 				sceneText, sceneErr := g.GenerateImageScene(text)
 				if sceneErr != nil {
-					// Both image and text fallback failed
 					return imageGenMsg{err: fmt.Errorf("image generation error: %v; fallback text error: %v", err, sceneErr)}
 				}
-				// Save the text fallback as scene_321.txt so users can inspect it later
 				txtName := "scene_321.txt"
 				if saveErr := s.WriteFile(wp, txtName, []byte(sceneText)); saveErr != nil {
 					return imageGenMsg{err: saveErr}
 				}
-				// Also return the text as a normal Gemini response so the UI shows it immediately
 				return geminiResponseMsg{content: sceneText, err: nil}
 			}
 
@@ -640,6 +634,30 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 				mimeType:  mimeType,
 				savedPath: savedPath,
 			}
+		}
+	case core.StepRoleplay:
+		if len(m.replyMessages) == 0 {
+			m.statusMsg = "Press 'i' to start the conversation first"
+			return m, nil
+		}
+		lastUserMsg := ""
+		for i := len(m.replyMessages) - 1; i >= 0; i-- {
+			if m.replyMessages[i].role == "user" {
+				lastUserMsg = m.replyMessages[i].content
+				break
+			}
+		}
+		if lastUserMsg == "" {
+			m.statusMsg = "No user message to give feedback on"
+			return m, nil
+		}
+		m.replyFeedbackMode = true
+		m.replyLoading = true
+		m.statusMsg = "Getting feedback..."
+		g := m.gemini
+		return m, func() tea.Msg {
+			content, err := g.FeedbackForReply(lastUserMsg)
+			return geminiResponseMsg{content: content, err: err}
 		}
 	}
 	return m, nil
@@ -702,13 +720,14 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.ideaResponse = ""
 	m.speechFeedback = ""
 	m.speechInput = ""
-	m.speechMessages = []speechMessage{}
-	m.speechLastAudio = ""
 	m.speechScrollOffset = 0
 	m.scene321 = ""
 	m.image321Path = ""
 	m.image321Preview = ""
-	m.roleplayMessages = []roleplayMessage{}
+	m.replyMessages = []replyMessage{}
+	m.replyLastAudio = ""
+	m.replyScrollOffset = 0
+	m.replyFeedback = ""
 	m.statusMsg = fmt.Sprintf("Switched to %s", wp.Path())
 
 	if data, err := m.storage.ReadFile(wp, "reading.md"); err == nil {
@@ -738,6 +757,9 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// exported for tests
+func CommentForWPM(wpm int) string { return commentForWPM(wpm) }
+
 func (m Model) createNewWeek() (Model, tea.Cmd) {
 	wp := storage.CurrentWeekPath()
 	for _, w := range m.weeks {
@@ -749,6 +771,26 @@ func (m Model) createNewWeek() (Model, tea.Cmd) {
 	m.weeks = append([]core.WeekPath{wp}, m.weeks...)
 	m.sidebarCursor = 0
 	return m.switchWeek(wp)
+}
+
+// commentForWPM returns an appropriate short comment for a WPM value.
+// - below ~150: encouraging
+// - around 150: positive
+// - high (>=180): strong praise
+func commentForWPM(wpm int) string {
+	if wpm <= 0 {
+		return ""
+	}
+	switch {
+	case wpm < 150:
+		return "Nice effort — keep practicing! Aim for 150 WPM."
+	case wpm >= 150 && wpm < 180:
+		return "Good job — around 150 WPM! Keep it up."
+	case wpm >= 180 && wpm < 200:
+		return "Amazing speed — that's blazing (≈180 WPM)!"
+	default:
+		return "Incredible speed — you're blazing beyond expectations!"
+	}
 }
 
 func (m Model) handleIdeaInput(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -780,88 +822,79 @@ func (m Model) handleIdeaInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSpeechChatInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleSpeechInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.speechChatInputMode = false
+		m.speechInputMode = false
 	case tea.KeyEnter:
-		if m.speechChatInput != "" && m.gemini.HasAPIKey() {
-			userMsg := m.speechChatInput
-			m.speechMessages = append(m.speechMessages, speechMessage{
-				role:    "user",
-				content: userMsg,
-			})
-			m.speechInput = userMsg
-			m.speechChatInput = ""
-			m.speechChatInputMode = false
+		if m.speechInput != "" && m.gemini.HasAPIKey() {
+			m.speechInputMode = false
 			m.speechLoading = true
-			m.statusMsg = "Waiting for response..."
+			m.speechFeedback = ""
+			m.speechScrollOffset = 0
+			m.statusMsg = "Analyzing speech..."
 			g := m.gemini
-			history := make([]geminiPkg.SpeechChatMessage, 0, len(m.speechMessages)-1)
-			for _, sm := range m.speechMessages[:len(m.speechMessages)-1] {
-				history = append(history, geminiPkg.SpeechChatMessage{Role: sm.role, Content: sm.content})
-			}
+			text := m.speechInput
 			return m, func() tea.Msg {
-				content, err := g.SpeechChat(history, userMsg)
+				content, err := g.AnalyzeSpeech(text)
 				return geminiResponseMsg{content: content, err: err}
 			}
-		} else if m.speechChatInput != "" {
-			m.speechMessages = append(m.speechMessages, speechMessage{
-				role:    "user",
-				content: m.speechChatInput,
-			})
-			m.speechChatInput = ""
-			m.speechChatInputMode = false
+		} else if m.speechInput != "" {
+			m.speechInputMode = false
 			m.statusMsg = "GEMINI_API_KEY not set"
 		}
 	case tea.KeyBackspace:
-		runes := []rune(m.speechChatInput)
+		runes := []rune(m.speechInput)
 		if len(runes) > 0 {
-			m.speechChatInput = string(runes[:len(runes)-1])
+			m.speechInput = string(runes[:len(runes)-1])
 		}
 	case tea.KeyRunes, tea.KeySpace:
-		m.speechChatInput += string(msg.Runes)
+		m.speechInput += string(msg.Runes)
 	}
 	return m, nil
 }
 
-func (m Model) handleRoleplayInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.roleplayInputMode = false
+		m.replyInputMode = false
 	case tea.KeyEnter:
-		if m.roleplayInput != "" && m.gemini.HasAPIKey() {
-			userMsg := m.roleplayInput
-			m.roleplayMessages = append(m.roleplayMessages, roleplayMessage{
+		if m.replyInput != "" && m.gemini.HasAPIKey() {
+			userMsg := m.replyInput
+			m.replyMessages = append(m.replyMessages, replyMessage{
 				role:    "user",
 				content: userMsg,
 			})
-			m.roleplayInput = ""
-			m.roleplayInputMode = false
-			m.roleplayLoading = true
-			m.statusMsg = "Waiting for response..."
+			m.replyInput = ""
+			m.replyInputMode = false
+			m.replyLoading = true
+			m.replyFeedback = ""
+			m.statusMsg = "Waiting for reply..."
 			g := m.gemini
-			role := m.roleplayRole
+			history := make([]geminiPkg.ReplyChatMessage, 0, len(m.replyMessages)-1)
+			for _, rm := range m.replyMessages[:len(m.replyMessages)-1] {
+				history = append(history, geminiPkg.ReplyChatMessage{Role: rm.role, Content: rm.content})
+			}
 			return m, func() tea.Msg {
-				content, err := g.StartRoleplay(role, userMsg)
+				content, err := g.ReplyChat(history, userMsg)
 				return geminiResponseMsg{content: content, err: err}
 			}
-		} else if m.roleplayInput != "" {
-			m.roleplayMessages = append(m.roleplayMessages, roleplayMessage{
+		} else if m.replyInput != "" {
+			m.replyMessages = append(m.replyMessages, replyMessage{
 				role:    "user",
-				content: m.roleplayInput,
+				content: m.replyInput,
 			})
-			m.roleplayInput = ""
-			m.roleplayInputMode = false
+			m.replyInput = ""
+			m.replyInputMode = false
 			m.statusMsg = "GEMINI_API_KEY not set"
 		}
 	case tea.KeyBackspace:
-		runes := []rune(m.roleplayInput)
+		runes := []rune(m.replyInput)
 		if len(runes) > 0 {
-			m.roleplayInput = string(runes[:len(runes)-1])
+			m.replyInput = string(runes[:len(runes)-1])
 		}
 	case tea.KeyRunes, tea.KeySpace:
-		m.roleplayInput += string(msg.Runes)
+		m.replyInput += string(msg.Runes)
 	}
 	return m, nil
 }
@@ -923,7 +956,7 @@ func (m Model) renderHeader() string {
 func (m Model) renderTabs() string {
 	stepNames := []string{
 		"1.Idea", "2.Words", "3.Reading", "4.Listening",
-		"5.Speech", "6.3-2-1", "7.Roleplay",
+		"5.Speech", "6.3-2-1", "7.Reply",
 	}
 	tabs := make([]string, 7)
 	for i, name := range stepNames {
@@ -1099,7 +1132,7 @@ func (m Model) renderContent(width, height int) string {
 	case core.StepThreeTwoOne:
 		return m.render321Step(width, height)
 	case core.StepRoleplay:
-		return m.renderRoleplayStep(width, height)
+		return m.renderReplyStep(width, height)
 	default:
 		return styleDimCenter.Width(width).Height(height).
 			Render("(not implemented)")
@@ -1108,7 +1141,7 @@ func (m Model) renderContent(width, height int) string {
 
 func (m Model) renderFooter() string {
 	mode := "NORMAL"
-	if m.ideaMode || m.speechChatInputMode || m.roleplayInputMode {
+	if m.ideaMode || m.speechInputMode || m.replyInputMode {
 		mode = "INSERT"
 	}
 	if m.sidebarFocused {
@@ -1119,7 +1152,7 @@ func (m Model) renderFooter() string {
 	}
 
 	status := m.statusMsg
-	if m.loading || m.wordsLoading || m.speechLoading || m.scene321Loading || m.roleplayLoading {
+	if m.loading || m.wordsLoading || m.speechLoading || m.scene321Loading || m.replyLoading {
 		status = "⏳ Loading..."
 	}
 
