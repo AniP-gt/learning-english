@@ -16,10 +16,10 @@ export const SceneStep = ({
   handleGenerateScene,
 }: SceneStepProps) => (
   <section className="space-y-6 step-section">
-    <div className="flex items-center justify-between">
-      <div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
         <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 6 · 3-2-1</p>
-        <h2 className="text-3xl font-bold text-[#bb9af7]">Visualize the scene</h2>
+        <h2 className="text-2xl font-bold text-[#bb9af7] sm:text-3xl">Visualize the scene</h2>
       </div>
       <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#cdd6f4]">Memory prompt</span>
     </div>

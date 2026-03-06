@@ -16,6 +16,7 @@ import { RoleplayStep } from "./components/steps/RoleplayStep";
 
 export default function HomePage() {
   const [activeStep, setActiveStep] = useState(1);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const learning = useLearning();
   const { ideaLoading, handleGenerateTopic, setSettingsOpen } = learning;
   const handleWeekSelect = (week: string) => {
@@ -50,18 +51,41 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-screen bg-[#1a1b26] text-[#a9b1d6] font-mono">
-      <Sidebar weeks={learning.weeks} weeksLoading={learning.weeksLoading} weeksError={learning.weeksError} activeWeek={learning.activeWeek} weekFilesLoading={learning.weekFilesLoading} currentWeekKey={learning.currentWeekKey} onWeekSelect={handleWeekSelect} />
-      <div className="flex flex-1 flex-col">
-        <Header cefrLevel={learning.cefrLevel} onSettingsOpen={() => learning.setSettingsOpen(true)} />
+      <Sidebar
+        weeks={learning.weeks}
+        weeksLoading={learning.weeksLoading}
+        weeksError={learning.weeksError}
+        activeWeek={learning.activeWeek}
+        weekFilesLoading={learning.weekFilesLoading}
+        currentWeekKey={learning.currentWeekKey}
+        onWeekSelectAction={handleWeekSelect}
+        isOpen={sidebarOpen}
+        onCloseAction={() => setSidebarOpen(false)}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header
+          cefrLevel={learning.cefrLevel}
+          onSettingsOpenAction={() => learning.setSettingsOpen(true)}
+          onMenuOpenAction={() => setSidebarOpen(true)}
+        />
         <StepNav activeStep={activeStep} onStepChange={setActiveStep} />
-        <main className="flex-1 overflow-y-auto p-8">{stepPanels[activeStep - 1]}</main>
-        <footer className="flex items-center justify-between border-t border-[#24283b] bg-[#1f2335] px-6 py-2 text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8">{stepPanels[activeStep - 1]}</main>
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#24283b] bg-[#1f2335] px-3 sm:px-6 py-2 text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">
           <span>Tokyo Night · Gemini Web</span>
-          <span>Step {activeStep}/7</span>
-          <span>status: synced</span>
+          <span className="hidden sm:inline">status: synced</span>
+          <span className="text-[#7aa2f7]">Step {activeStep}/7</span>
         </footer>
       </div>
-      <SettingsPanel open={learning.settingsOpen} apiKey={learning.apiKey} cefrLevel={learning.cefrLevel} settingsMessage={learning.settingsMessage} onClose={() => learning.setSettingsOpen(false)} onApiKeyChange={learning.setApiKey} onCefrLevelChange={learning.setCefrLevel} onSave={learning.saveSettings} />
+      <SettingsPanel
+        open={learning.settingsOpen}
+        apiKey={learning.apiKey}
+        cefrLevel={learning.cefrLevel}
+        settingsMessage={learning.settingsMessage}
+        onClose={() => learning.setSettingsOpen(false)}
+        onApiKeyChange={learning.setApiKey}
+        onCefrLevelChange={learning.setCefrLevel}
+        onSave={learning.saveSettings}
+      />
     </div>
   );
 }

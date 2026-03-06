@@ -30,14 +30,14 @@ export const RoleplayStep = ({
   hasUserMessage,
 }: RoleplayStepProps) => (
   <section className="space-y-6 step-section">
-    <div className="flex items-center justify-between">
-      <div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
         <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 7 · Roleplay</p>
-        <h2 className="text-3xl font-bold text-[#bb9af7]">Gemini chat lab</h2>
+        <h2 className="text-2xl font-bold text-[#bb9af7] sm:text-3xl">Gemini chat lab</h2>
       </div>
       <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#bb9af7]">Live talk</span>
     </div>
-    <div className="h-72 overflow-y-auto rounded border border-[#24283b] bg-[#141724] p-4 text-sm">
+    <div className="h-48 sm:h-72 overflow-y-auto rounded border border-[#24283b] bg-[#141724] p-4 text-sm">
       {chatHistory.length === 0 ? (
         <p className="text-[12px] text-[#5b647b]">Send a message to start the roleplay.</p>
       ) : (

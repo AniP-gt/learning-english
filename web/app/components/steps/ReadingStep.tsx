@@ -28,12 +28,12 @@ export const ReadingStep = ({
   topicHeader,
 }: ReadingStepProps) => (
   <section className="space-y-6 step-section">
-    <div className="flex items-center justify-between">
-      <div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
         <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 3 · Reading</p>
-        <h2 className="text-3xl font-bold text-[#e0af68]">Timing Practice</h2>
+        <h2 className="text-2xl font-bold text-[#e0af68] sm:text-3xl">Timing Practice</h2>
       </div>
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[#c0caf5]">CEFR {cefrLevel}</span>
         <button
           type="button"

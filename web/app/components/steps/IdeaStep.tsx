@@ -33,12 +33,12 @@ export const IdeaStep = ({
   reviewsCopy,
 }: IdeaStepProps) => (
   <section className="space-y-6 step-section">
-    <div className="flex items-center justify-between">
-      <div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
         <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Step 1 · Idea</p>
-        <h1 className="text-3xl font-bold text-[#7aa2f7]">日本語から英語トピックを引き出す</h1>
+        <h1 className="text-2xl font-bold text-[#7aa2f7] sm:text-3xl">日本語から英語トピックを引き出す</h1>
       </div>
-      <div className="flex items-center gap-2 text-xs text-[#a9b1d6]">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[#a9b1d6]">
         <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1">g: regenerate</span>
         <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1">? : settings</span>
       </div>

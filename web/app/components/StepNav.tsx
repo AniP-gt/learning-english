@@ -14,7 +14,7 @@ export const StepNav = ({ activeStep, onStepChange }: StepNavProps) => (
         key={step.id}
         type="button"
         onClick={() => onStepChange(step.id)}
-        className={`relative z-10 flex-1 rounded px-3 py-2 text-[10px] uppercase tracking-[0.3em] transition ${
+        className={`relative z-10 flex-1 rounded px-1 py-2 sm:px-3 text-[10px] uppercase tracking-[0.3em] transition ${
           activeStep === step.id
             ? "bg-[#7aa2f7] text-[#1a1b26] shadow-[0_5px_20px_rgba(122,162,247,0.5)]"
             : "text-[#5b647b] hover:bg-[#24283b]"

@@ -25,9 +25,9 @@ export const SettingsPanel = ({
   onSave,
 }: SettingsPanelProps) => (
   <>
-    {open && <div className="fixed inset-0 z-20 bg-black/60" onClick={onClose} />}
+    {open && <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />}
     <div
-      className={`fixed inset-y-0 right-0 z-30 w-96 border-l border-[#24283b] bg-[#0f111a] px-6 py-8 shadow-[0_0_30px_rgba(5,6,15,0.7)] transition-transform duration-300 ${
+      className={`fixed inset-y-0 right-0 z-60 w-full max-w-sm sm:w-96 overflow-y-auto border-l border-[#24283b] bg-[#0f111a] px-6 py-8 shadow-[0_0_30px_rgba(5,6,15,0.7)] transition-transform duration-300 ${
         open ? "translate-x-0" : "translate-x-full"
       }`}
     >
