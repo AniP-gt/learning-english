@@ -175,14 +175,29 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.statusMsg = "Invalid row format"
 			}
 			return m, nil
+		case tea.KeyLeft:
+			if m.wordsInputCursor > 0 {
+				m.wordsInputCursor--
+			}
+			return m, nil
+		case tea.KeyRight:
+			runes := []rune(m.wordsInputBuffer)
+			if m.wordsInputCursor < len(runes) {
+				m.wordsInputCursor++
+			}
+			return m, nil
 		case tea.KeyBackspace:
 			runes := []rune(m.wordsInputBuffer)
-			if len(runes) > 0 {
-				m.wordsInputBuffer = string(runes[:len(runes)-1])
+			if m.wordsInputCursor > 0 && len(runes) > 0 {
+				m.wordsInputBuffer = string(runes[:m.wordsInputCursor-1]) + string(runes[m.wordsInputCursor:])
+				m.wordsInputCursor--
 			}
 			return m, nil
 		case tea.KeyRunes, tea.KeySpace:
-			m.wordsInputBuffer += string(msg.Runes)
+			runes := []rune(m.wordsInputBuffer)
+			ins := msg.Runes
+			m.wordsInputBuffer = string(runes[:m.wordsInputCursor]) + string(ins) + string(runes[m.wordsInputCursor:])
+			m.wordsInputCursor += len(ins)
 			return m, nil
 		default:
 			// ignore other keys while editing
@@ -208,12 +223,14 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "i":
 		m.wordsInputMode = true
 		m.wordsInputBuffer = "|  |  |  |"
+		m.wordsInputCursor = len([]rune(m.wordsInputBuffer))
 		m.wordsEditingAction = "insert"
 		m.statusMsg = "Insert new row. Enter to confirm."
 	case "u":
 		if m.wordsCursor >= 0 && m.wordsCursor < n {
 			c := m.parsedWords[m.wordsCursor]
 			m.wordsInputBuffer = fmt.Sprintf("| %s | %s | %s |", c.word, c.translation, c.example)
+			m.wordsInputCursor = len([]rune(m.wordsInputBuffer))
 			m.wordsInputMode = true
 			m.wordsEditingAction = "update"
 			m.statusMsg = "Update row. Edit and press Enter to save."

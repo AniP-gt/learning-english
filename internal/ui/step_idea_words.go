@@ -13,7 +13,7 @@ func (m Model) renderIdeaStep(width, height int) string {
 	var content string
 	if m.ideaMode {
 		prompt := styleInput.Width(width - 8).Render(
-			"日本語で話したいトピックを入力してください:\n\n> " + m.ideaInput + "█",
+			"日本語で話したいトピックを入力してください:\n\n> " + insertCursor(m.ideaInput, m.ideaCursor),
 		)
 		hint := styleHint.Render("Enter: 送信 | Esc: キャンセル")
 		content = lipgloss.JoinVertical(lipgloss.Left, prompt, hint)

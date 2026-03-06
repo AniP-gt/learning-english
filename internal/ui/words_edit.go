@@ -33,7 +33,7 @@ func (m Model) renderWordsEditMode(width, height int) string {
 
 	var inputBox string
 	if m.wordsInputMode {
-		inputBox = styleContentBox.Width(width - 8).Render(m.wordsInputBuffer + "█")
+		inputBox = styleContentBox.Width(width - 8).Render(insertCursor(m.wordsInputBuffer, m.wordsInputCursor))
 	} else {
 		hint := styleHint.Render("i:insert u:update d:delete Enter:confirm esc:exit")
 		inputBox = hint

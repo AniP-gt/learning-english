@@ -24,7 +24,7 @@ func (m Model) renderSpeechStep(width, height int) string {
 	var inputSection string
 	if m.speechInputMode {
 		inputSection = styleInput.Width(width - 8).Render(
-			"> " + m.speechInput + "█",
+			"> " + insertCursor(m.speechInput, m.speechCursor),
 		)
 	} else if m.speechInput != "" {
 		inputSection = lipgloss.NewStyle().

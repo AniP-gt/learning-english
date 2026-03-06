@@ -66,6 +66,7 @@ type Model struct {
 	wordsCursor        int
 	wordsInputMode     bool
 	wordsInputBuffer   string
+	wordsInputCursor   int
 	wordsEditingAction string
 
 	flashcardMode    bool
@@ -88,6 +89,7 @@ type Model struct {
 
 	speechInput        string
 	speechInputMode    bool
+	speechCursor       int
 	speechFeedback     string
 	speechLoading      bool
 	speechScrollOffset int
@@ -100,6 +102,7 @@ type Model struct {
 	replyMessages     []replyMessage
 	replyInput        string
 	replyInputMode    bool
+	replyCursor       int
 	replyLoading      bool
 	replyLastAudio    string
 	replyScrollOffset int
@@ -515,14 +518,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.activeStep == core.StepIdea {
 			m.ideaMode = true
 			m.ideaInput = ""
+			m.ideaCursor = 0
 		}
 		if m.activeStep == core.StepSpeech {
 			m.speechInputMode = true
 			m.speechInput = ""
+			m.speechCursor = 0
 		}
 		if m.activeStep == core.StepRoleplay {
 			m.replyInputMode = true
 			m.replyInput = ""
+			m.replyCursor = 0
 		}
 
 	case "f":
@@ -891,13 +897,26 @@ func (m Model) handleIdeaInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				}
 			}
 		}
+	case tea.KeyLeft:
+		if m.ideaCursor > 0 {
+			m.ideaCursor--
+		}
+	case tea.KeyRight:
+		runes := []rune(m.ideaInput)
+		if m.ideaCursor < len(runes) {
+			m.ideaCursor++
+		}
 	case tea.KeyBackspace:
 		runes := []rune(m.ideaInput)
-		if len(runes) > 0 {
-			m.ideaInput = string(runes[:len(runes)-1])
+		if m.ideaCursor > 0 && len(runes) > 0 {
+			m.ideaInput = string(runes[:m.ideaCursor-1]) + string(runes[m.ideaCursor:])
+			m.ideaCursor--
 		}
 	case tea.KeyRunes, tea.KeySpace:
-		m.ideaInput += string(msg.Runes)
+		runes := []rune(m.ideaInput)
+		ins := msg.Runes
+		m.ideaInput = string(runes[:m.ideaCursor]) + string(ins) + string(runes[m.ideaCursor:])
+		m.ideaCursor += len(ins)
 	}
 	return m, nil
 }
@@ -923,13 +942,26 @@ func (m Model) handleSpeechInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.speechInputMode = false
 			m.statusMsg = "GEMINI_API_KEY not set"
 		}
+	case tea.KeyLeft:
+		if m.speechCursor > 0 {
+			m.speechCursor--
+		}
+	case tea.KeyRight:
+		runes := []rune(m.speechInput)
+		if m.speechCursor < len(runes) {
+			m.speechCursor++
+		}
 	case tea.KeyBackspace:
 		runes := []rune(m.speechInput)
-		if len(runes) > 0 {
-			m.speechInput = string(runes[:len(runes)-1])
+		if m.speechCursor > 0 && len(runes) > 0 {
+			m.speechInput = string(runes[:m.speechCursor-1]) + string(runes[m.speechCursor:])
+			m.speechCursor--
 		}
 	case tea.KeyRunes, tea.KeySpace:
-		m.speechInput += string(msg.Runes)
+		runes := []rune(m.speechInput)
+		ins := msg.Runes
+		m.speechInput = string(runes[:m.speechCursor]) + string(ins) + string(runes[m.speechCursor:])
+		m.speechCursor += len(ins)
 	}
 	return m, nil
 }
@@ -946,6 +978,7 @@ func (m Model) handleReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				content: userMsg,
 			})
 			m.replyInput = ""
+			m.replyCursor = 0
 			m.replyInputMode = false
 			m.replyLoading = true
 			m.replyFeedback = ""
@@ -965,16 +998,30 @@ func (m Model) handleReplyInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 				content: m.replyInput,
 			})
 			m.replyInput = ""
+			m.replyCursor = 0
 			m.replyInputMode = false
 			m.statusMsg = "GEMINI_API_KEY not set"
 		}
+	case tea.KeyLeft:
+		if m.replyCursor > 0 {
+			m.replyCursor--
+		}
+	case tea.KeyRight:
+		runes := []rune(m.replyInput)
+		if m.replyCursor < len(runes) {
+			m.replyCursor++
+		}
 	case tea.KeyBackspace:
 		runes := []rune(m.replyInput)
-		if len(runes) > 0 {
-			m.replyInput = string(runes[:len(runes)-1])
+		if m.replyCursor > 0 && len(runes) > 0 {
+			m.replyInput = string(runes[:m.replyCursor-1]) + string(runes[m.replyCursor:])
+			m.replyCursor--
 		}
 	case tea.KeyRunes, tea.KeySpace:
-		m.replyInput += string(msg.Runes)
+		runes := []rune(m.replyInput)
+		ins := msg.Runes
+		m.replyInput = string(runes[:m.replyCursor]) + string(ins) + string(runes[m.replyCursor:])
+		m.replyCursor += len(ins)
 	}
 	return m, nil
 }

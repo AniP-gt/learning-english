@@ -103,3 +103,14 @@ var (
 			Foreground(colorFgDim).
 			Italic(true)
 )
+
+func insertCursor(text string, cursorPos int) string {
+	runes := []rune(text)
+	if cursorPos < 0 {
+		cursorPos = 0
+	}
+	if cursorPos > len(runes) {
+		cursorPos = len(runes)
+	}
+	return string(runes[:cursorPos]) + "█" + string(runes[cursorPos:])
+}

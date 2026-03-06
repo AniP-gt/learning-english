@@ -57,7 +57,7 @@ func (m Model) renderReplyStep(width, height int) string {
 	var inputSection string
 	if m.replyInputMode {
 		inputSection = styleInput.Width(width - 8).Render(
-			"> " + m.replyInput + "█",
+			"> " + insertCursor(m.replyInput, m.replyCursor),
 		)
 	} else {
 		inputSection = lipgloss.NewStyle().
