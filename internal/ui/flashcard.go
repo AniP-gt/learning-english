@@ -127,6 +127,70 @@ func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // words edit handling moved here because it logically operates on flashcards
 func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	n := len(m.parsedWords)
+	// If we're in input mode, handle rune/backspace/enter/esc here so
+	// the user can actually type into the input buffer.
+	if m.wordsInputMode {
+		switch msg.Type {
+		case tea.KeyEsc:
+			// cancel input editing
+			m.wordsInputMode = false
+			m.wordsEditingAction = ""
+			m.statusMsg = "Cancelled edit"
+			return m, nil
+		case tea.KeyEnter:
+			// reuse existing enter-handling below by falling through to
+			// parsing and saving the buffer
+			cols := splitMarkdownRow(m.wordsInputBuffer)
+			if len(cols) >= 2 {
+				w := strings.TrimSpace(cols[0])
+				t := strings.TrimSpace(cols[1])
+				e := ""
+				if len(cols) >= 3 {
+					e = strings.TrimSpace(cols[2])
+				}
+				if m.wordsEditingAction == "insert" {
+					insertAt := m.wordsCursor + 1
+					if insertAt < 0 {
+						insertAt = 0
+					}
+					new := flashcard{word: w, translation: t, example: e}
+					if insertAt >= len(m.parsedWords) {
+						m.parsedWords = append(m.parsedWords, new)
+					} else {
+						head := append([]flashcard{}, m.parsedWords[:insertAt]...)
+						head = append(head, new)
+						m.parsedWords = append(head, m.parsedWords[insertAt:]...)
+					}
+				} else if m.wordsEditingAction == "update" {
+					if m.wordsCursor >= 0 && m.wordsCursor < len(m.parsedWords) {
+						m.parsedWords[m.wordsCursor] = flashcard{word: w, translation: t, example: e}
+					}
+				}
+				m.words = buildWordsMarkdown(m.parsedWords)
+				_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
+				m.wordsInputMode = false
+				m.wordsEditingAction = ""
+				m.statusMsg = "Saved words"
+			} else {
+				m.statusMsg = "Invalid row format"
+			}
+			return m, nil
+		case tea.KeyBackspace:
+			runes := []rune(m.wordsInputBuffer)
+			if len(runes) > 0 {
+				m.wordsInputBuffer = string(runes[:len(runes)-1])
+			}
+			return m, nil
+		case tea.KeyRunes, tea.KeySpace:
+			m.wordsInputBuffer += string(msg.Runes)
+			return m, nil
+		default:
+			// ignore other keys while editing
+			return m, nil
+		}
+	}
+
+	// Not in input mode — handle navigation and commands
 	switch msg.String() {
 	case "esc", "q":
 		m.wordsEditMode = false
@@ -163,43 +227,6 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.wordsCursor = len(m.parsedWords) - 1
 			}
 			m.statusMsg = "Deleted row"
-		}
-	case "enter":
-		if m.wordsInputMode {
-			cols := splitMarkdownRow(m.wordsInputBuffer)
-			if len(cols) >= 2 {
-				w := strings.TrimSpace(cols[0])
-				t := strings.TrimSpace(cols[1])
-				e := ""
-				if len(cols) >= 3 {
-					e = strings.TrimSpace(cols[2])
-				}
-				if m.wordsEditingAction == "insert" {
-					insertAt := m.wordsCursor + 1
-					if insertAt < 0 {
-						insertAt = 0
-					}
-					new := flashcard{word: w, translation: t, example: e}
-					if insertAt >= len(m.parsedWords) {
-						m.parsedWords = append(m.parsedWords, new)
-					} else {
-						head := append([]flashcard{}, m.parsedWords[:insertAt]...)
-						head = append(head, new)
-						m.parsedWords = append(head, m.parsedWords[insertAt:]...)
-					}
-				} else if m.wordsEditingAction == "update" {
-					if m.wordsCursor >= 0 && m.wordsCursor < len(m.parsedWords) {
-						m.parsedWords[m.wordsCursor] = flashcard{word: w, translation: t, example: e}
-					}
-				}
-				m.words = buildWordsMarkdown(m.parsedWords)
-				_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
-				m.wordsInputMode = false
-				m.wordsEditingAction = ""
-				m.statusMsg = "Saved words"
-			} else {
-				m.statusMsg = "Invalid row format"
-			}
 		}
 	}
 	return m, nil

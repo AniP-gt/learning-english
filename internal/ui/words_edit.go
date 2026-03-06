@@ -19,7 +19,14 @@ func (m Model) renderWordsEditMode(width, height int) string {
 			if i == m.wordsCursor {
 				prefix = "> "
 			}
-			row := fmt.Sprintf("%s%s — %s", prefix, c.word, c.translation)
+			// include example if present
+			example := strings.TrimSpace(c.example)
+			var row string
+			if example != "" {
+				row = fmt.Sprintf("%s%s — %s — %s", prefix, c.word, c.translation, example)
+			} else {
+				row = fmt.Sprintf("%s%s — %s", prefix, c.word, c.translation)
+			}
 			rows = append(rows, lipgloss.NewStyle().Background(colorBg).Render(row))
 		}
 	}
