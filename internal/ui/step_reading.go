@@ -66,14 +66,15 @@ func (m Model) renderReadingStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().PaddingTop(1).Render(textBox),
-		lipgloss.NewStyle().PaddingTop(1).Render(statsRow),
-		lipgloss.NewStyle().PaddingTop(1).Render(timerBtn),
-		lipgloss.NewStyle().PaddingTop(1).Render(hint),
-		lipgloss.NewStyle().PaddingTop(1).Render(wpmComment),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(textBox),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(statsRow),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(timerBtn),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(wpmComment),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).

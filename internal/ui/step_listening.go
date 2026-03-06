@@ -60,20 +60,21 @@ func (m Model) renderListeningStep(width, height int) string {
 		BorderForeground(colorBorderAlt).
 		Width(width - 8).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Foreground(colorFgDim).Render(speedBar),
-			lipgloss.NewStyle().PaddingTop(1).Render(playBtn),
+			lipgloss.NewStyle().Background(colorBgDark).Foreground(colorFgDim).Render(speedBar),
+			lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(playBtn),
 		))
 
 	hint := styleHint.Render("s/SPACE: 再生 | +/-: 速度変更 | g: テキスト更新")
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().PaddingTop(1).Render(controlPanel),
-		lipgloss.NewStyle().PaddingTop(1).Render(terminalBox),
-		lipgloss.NewStyle().PaddingTop(1).Render(hint),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(controlPanel),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(terminalBox),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).

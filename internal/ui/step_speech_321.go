@@ -73,12 +73,13 @@ func (m Model) renderSpeechStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().PaddingTop(1).Render(inputSection),
-		lipgloss.NewStyle().PaddingTop(1).Render(feedbackBox),
-		lipgloss.NewStyle().PaddingTop(1).Render(hint),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputSection),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(feedbackBox),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).
@@ -92,11 +93,11 @@ func (m Model) render321Step(width, height int) string {
 	if m.scene321Loading {
 		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini 2.5 Flash Image で画像生成中...")
 	} else if m.image321Preview != "" {
-		pathLine := lipgloss.NewStyle().Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
+		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
 		content = lipgloss.JoinVertical(lipgloss.Left, pathLine, m.image321Preview)
 	} else if m.image321Path != "" {
 		preview := renderTerminalImage(m.image321Path, width-12, height-10)
-		pathLine := lipgloss.NewStyle().Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
+		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
 		if preview != "" {
 			content = lipgloss.JoinVertical(lipgloss.Left, pathLine, preview)
 		} else {
@@ -116,11 +117,12 @@ func (m Model) render321Step(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().PaddingTop(1).Render(content),
-		lipgloss.NewStyle().PaddingTop(1).Render(hint),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(content),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).

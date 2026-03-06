@@ -73,10 +73,12 @@ var (
 			BorderForeground(colorBlue)
 
 	styleDimCenter = lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(colorFgDim).
 			Align(lipgloss.Center, lipgloss.Center)
 
 	styleStepTitle = lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(colorBlue).
 			Bold(true)
 
@@ -87,14 +89,17 @@ var (
 			MarginBottom(1)
 
 	styleUserChat = lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(colorGreen).
 			Bold(true)
 
 	styleAssistantChat = lipgloss.NewStyle().
+				Background(colorBg).
 				Foreground(colorPurple).
 				Bold(true)
 
 	styleHint = lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(colorFgDim).
 			Italic(true)
 )

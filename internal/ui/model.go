@@ -1106,8 +1106,8 @@ func (m Model) renderSidebar(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		header,
-		lipgloss.NewStyle().PaddingTop(1).Render(tree),
-		lipgloss.NewStyle().PaddingTop(1).Render(dataPathLine),
+		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(tree),
+		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(dataPathLine),
 		hint,
 	)
 

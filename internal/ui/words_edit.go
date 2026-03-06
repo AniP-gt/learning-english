@@ -12,7 +12,7 @@ func (m Model) renderWordsEditMode(width, height int) string {
 
 	var rows []string
 	if len(m.parsedWords) == 0 {
-		rows = append(rows, lipgloss.NewStyle().Foreground(colorFgDim).Render("(no words yet)"))
+		rows = append(rows, lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render("(no words yet)"))
 	} else {
 		for i, c := range m.parsedWords {
 			prefix := "  "
@@ -20,7 +20,7 @@ func (m Model) renderWordsEditMode(width, height int) string {
 				prefix = "> "
 			}
 			row := fmt.Sprintf("%s%s — %s", prefix, c.word, c.translation)
-			rows = append(rows, lipgloss.NewStyle().Render(row))
+			rows = append(rows, lipgloss.NewStyle().Background(colorBg).Render(row))
 		}
 	}
 
@@ -39,10 +39,11 @@ func (m Model) renderWordsEditMode(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Padding(1, 0).Render(content),
+		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).

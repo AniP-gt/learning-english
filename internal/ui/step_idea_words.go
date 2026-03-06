@@ -39,6 +39,7 @@ func (m Model) renderIdeaStep(width, height int) string {
 
 	if m.ideaInput != "" && !m.ideaMode && !m.loading {
 		inputPreview := lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(colorYellow).
 			Padding(0, 1).
 			Render(fmt.Sprintf("入力: %s", m.ideaInput))
@@ -47,10 +48,11 @@ func (m Model) renderIdeaStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Padding(1, 0).Render(content),
+		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).
@@ -93,10 +95,11 @@ func (m Model) renderWordsStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Padding(1, 0).Render(content),
+		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).
@@ -123,12 +126,12 @@ func (m Model) renderFlashcardMode(width, height int) string {
 
 	var checkMark string
 	if checked {
-		checkMark = lipgloss.NewStyle().Foreground(colorGreen).Bold(true).Render("✓ 覚えた!")
+		checkMark = lipgloss.NewStyle().Background(colorBg).Foreground(colorGreen).Bold(true).Render("✓ 覚えた!")
 	} else {
-		checkMark = lipgloss.NewStyle().Foreground(colorFgDim).Render("○ まだ")
+		checkMark = lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render("○ まだ")
 	}
 
-	counter := lipgloss.NewStyle().Foreground(colorFgDim).
+	counter := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).
 		Render(fmt.Sprintf("%d / %d  (覚えた: %d)", m.flashcardIndex+1, n, checkedCount))
 
 	var cardFace string
@@ -138,8 +141,9 @@ func (m Model) renderFlashcardMode(width, height int) string {
 	}
 
 	if !m.flashcardFlipped {
-		label := lipgloss.NewStyle().Foreground(colorFgDim).Italic(true).Render("English")
+		label := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Italic(true).Render("English")
 		word := lipgloss.NewStyle().
+			Background(colorBgHigher).
 			Foreground(colorBlue).
 			Bold(true).
 			Width(cardWidth).
@@ -147,8 +151,9 @@ func (m Model) renderFlashcardMode(width, height int) string {
 			Render(card.word)
 		cardFace = lipgloss.JoinVertical(lipgloss.Center, label, word)
 	} else {
-		label := lipgloss.NewStyle().Foreground(colorFgDim).Italic(true).Render("日本語")
+		label := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Italic(true).Render("日本語")
 		trans := lipgloss.NewStyle().
+			Background(colorBgHigher).
 			Foreground(colorYellow).
 			Bold(true).
 			Width(cardWidth).
@@ -157,6 +162,7 @@ func (m Model) renderFlashcardMode(width, height int) string {
 		var ex string
 		if card.example != "" {
 			ex = lipgloss.NewStyle().
+				Background(colorBgHigher).
 				Foreground(colorFgDim).
 				Width(cardWidth).
 				Align(lipgloss.Center).
@@ -186,18 +192,19 @@ func (m Model) renderFlashcardMode(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Padding(1, 0).Render(
+		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(
 			lipgloss.JoinVertical(lipgloss.Center,
 				counter,
-				lipgloss.NewStyle().Padding(1, 0).Render(cardBox),
+				lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(cardBox),
 				checkMark,
-				lipgloss.NewStyle().PaddingTop(1).Render(progressBar),
-				lipgloss.NewStyle().PaddingTop(1).Render(hint),
+				lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(progressBar),
+				lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
 			),
 		),
 	)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).

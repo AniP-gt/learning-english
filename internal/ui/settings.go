@@ -193,6 +193,7 @@ func (m Model) renderSettings(width, height int) string {
 	}
 
 	titleStyle := lipgloss.NewStyle().
+		Background(colorBgHigher).
 		Foreground(colorBlue).
 		Bold(true).
 		MarginBottom(1)
@@ -205,7 +206,7 @@ func (m Model) renderSettings(width, height int) string {
 	for i, label := range settingsLabels {
 		isSelected := i == m.settingsCursor
 
-		labelStyle := lipgloss.NewStyle().Foreground(colorFgDim)
+		labelStyle := lipgloss.NewStyle().Background(colorBgHigher).Foreground(colorFgDim)
 		if isSelected {
 			labelStyle = labelStyle.Foreground(colorYellow).Bold(true)
 		}
@@ -240,7 +241,7 @@ func (m Model) renderSettings(width, height int) string {
 		)
 	}
 
-	hint := lipgloss.NewStyle().Foreground(colorFgDim).
+	hint := lipgloss.NewStyle().Background(colorBgHigher).Foreground(colorFgDim).
 		Render("Tab/j/k: move field  ←/→: select model  Ctrl+S: save  Esc: close")
 	rows = append(rows, hint)
 
@@ -249,7 +250,7 @@ func (m Model) renderSettings(width, height int) string {
 		if strings.HasPrefix(m.settingsMsg, "Error") {
 			msgColor = colorRed
 		}
-		rows = append(rows, lipgloss.NewStyle().Foreground(msgColor).Render(m.settingsMsg))
+		rows = append(rows, lipgloss.NewStyle().Background(colorBgHigher).Foreground(msgColor).Render(m.settingsMsg))
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, rows...)
@@ -285,6 +286,7 @@ func (m Model) renderModelSelector(width int, isSelected bool, borderColor lipgl
 			items = append(items, s)
 		} else {
 			s := lipgloss.NewStyle().
+				Background(colorBgHigher).
 				Foreground(colorFgDim).
 				Padding(0, 1).
 				Render("○ " + model)
@@ -292,12 +294,12 @@ func (m Model) renderModelSelector(width int, isSelected bool, borderColor lipgl
 		}
 	}
 
-	nav := lipgloss.NewStyle().Foreground(colorFgDim).
+	nav := lipgloss.NewStyle().Background(colorBgHigher).Foreground(colorFgDim).
 		Render(fmt.Sprintf("← %d/%d →", m.settingsModelIdx+1, n))
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinVertical(lipgloss.Left, items...),
-		lipgloss.NewStyle().PaddingTop(1).Render(nav),
+		lipgloss.NewStyle().Background(colorBgHigher).PaddingTop(1).Render(nav),
 	)
 
 	return lipgloss.NewStyle().
@@ -332,6 +334,7 @@ func (m Model) renderCEFRSelector(width int, isSelected bool, borderColor lipglo
 			items = append(items, s)
 		} else {
 			s := lipgloss.NewStyle().
+				Background(colorBgHigher).
 				Foreground(colorFgDim).
 				Padding(0, 1).
 				Render("○ " + desc)
@@ -339,12 +342,12 @@ func (m Model) renderCEFRSelector(width int, isSelected bool, borderColor lipglo
 		}
 	}
 
-	nav := lipgloss.NewStyle().Foreground(colorFgDim).
+	nav := lipgloss.NewStyle().Background(colorBgHigher).Foreground(colorFgDim).
 		Render(fmt.Sprintf("← %d/%d →", m.settingsCEFRIdx+1, n))
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Top, items...),
-		lipgloss.NewStyle().PaddingTop(1).Render(nav),
+		lipgloss.NewStyle().Background(colorBgHigher).PaddingTop(1).Render(nav),
 	)
 
 	return lipgloss.NewStyle().

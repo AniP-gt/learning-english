@@ -16,11 +16,11 @@ func (m Model) renderReplyStep(width, height int) string {
 	for _, msg := range m.replyMessages {
 		if msg.role == "user" {
 			label := styleUserChat.Render("You: ")
-			text := lipgloss.NewStyle().Foreground(colorFg).Render(msg.content)
+			text := lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFg).Render(msg.content)
 			chatLines = append(chatLines, label+text)
 		} else {
 			label := styleAssistantChat.Render("Gemini: ")
-			text := lipgloss.NewStyle().Foreground(colorFg).Render(msg.content)
+			text := lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFg).Render(msg.content)
 			chatLines = append(chatLines, label+text)
 		}
 		chatLines = append(chatLines, "")
@@ -32,7 +32,7 @@ func (m Model) renderReplyStep(width, height int) string {
 
 	var chatContent string
 	if len(chatLines) == 0 {
-		chatContent = lipgloss.NewStyle().Foreground(colorFgDim).
+		chatContent = lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFgDim).
 			Render("英語でメッセージを送るには 'i' を押してください。\n\nGemini が返答し、自動で音声読み上げします。\n's' でもう一度聴けます。'g' で直前の発言のフィードバック。")
 	} else {
 		offset := m.replyScrollOffset
@@ -84,17 +84,18 @@ func (m Model) renderReplyStep(width, height int) string {
 
 	parts := []string{
 		title,
-		lipgloss.NewStyle().PaddingTop(1).Render(chatBox),
-		lipgloss.NewStyle().PaddingTop(1).Render(inputSection),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(chatBox),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputSection),
 	}
 	if feedbackSection != "" {
-		parts = append(parts, lipgloss.NewStyle().PaddingTop(1).Render(feedbackSection))
+		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(feedbackSection))
 	}
-	parts = append(parts, lipgloss.NewStyle().PaddingTop(1).Render(hint))
+	parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint))
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	return lipgloss.NewStyle().
+		Background(colorBg).
 		Width(width).
 		Height(height).
 		Padding(1, 2).
