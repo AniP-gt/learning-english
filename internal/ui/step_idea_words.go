@@ -64,6 +64,10 @@ func (m Model) renderWordsStep(width, height int) string {
 		return m.renderFlashcardMode(width, height)
 	}
 
+	if m.wordsEditMode {
+		return m.renderWordsEditMode(width, height)
+	}
+
 	var content string
 	if m.wordsLoading {
 		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini が単語リストを生成中...")

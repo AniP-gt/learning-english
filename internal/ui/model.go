@@ -62,6 +62,12 @@ type Model struct {
 	words        string
 	wordsLoading bool
 
+	wordsEditMode      bool
+	wordsCursor        int
+	wordsInputMode     bool
+	wordsInputBuffer   string
+	wordsEditingAction string
+
 	flashcardMode    bool
 	flashcardIndex   int
 	flashcardFlipped bool
@@ -363,6 +369,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.replyInputMode {
 		return m.handleReplyInput(msg)
 	}
+	if m.wordsEditMode {
+		return m.handleWordsEditKey(msg)
+	}
 	if m.flashcardMode {
 		return m.handleFlashcardKey(msg)
 	}
@@ -518,6 +527,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.flashcardMode = true
 			m.flashcardIndex = 0
 			m.flashcardFlipped = false
+		}
+
+	case "e":
+		if m.activeStep == core.StepWords {
+			m.wordsEditMode = true
+			m.wordsCursor = 0
+			m.statusMsg = "Words edit mode: use j/k to navigate, i: insert, u: update, d: delete, esc: exit"
 		}
 
 	case "ctrl+s":

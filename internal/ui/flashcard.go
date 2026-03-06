@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -58,6 +59,22 @@ func splitMarkdownRow(line string) []string {
 	return cols
 }
 
+// buildWordsMarkdown constructs a markdown table from flashcards.
+func buildWordsMarkdown(cards []flashcard) string {
+	// header
+	b := strings.Builder{}
+	b.WriteString("| Word | Translation | Example |\n")
+	b.WriteString("|------|-------------|---------|\n")
+	for _, c := range cards {
+		// escape vertical bars in content (very simple)
+		w := strings.ReplaceAll(c.word, "|", "\\|")
+		t := strings.ReplaceAll(c.translation, "|", "\\|")
+		e := strings.ReplaceAll(c.example, "|", "\\|")
+		b.WriteString(fmt.Sprintf("| %s | %s | %s |\n", w, t, e))
+	}
+	return b.String()
+}
+
 func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	n := len(m.parsedWords)
 	if n == 0 {
@@ -101,6 +118,87 @@ func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				playSay(word, m.listeningSpeed)
 				return struct{}{}
+			}
+		}
+	}
+	return m, nil
+}
+
+// words edit handling moved here because it logically operates on flashcards
+func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
+	n := len(m.parsedWords)
+	switch msg.String() {
+	case "esc", "q":
+		m.wordsEditMode = false
+		m.wordsInputMode = false
+		m.wordsEditingAction = ""
+		m.statusMsg = "Exited words edit mode"
+	case "j", "down":
+		if m.wordsCursor < n-1 {
+			m.wordsCursor++
+		}
+	case "k", "up":
+		if m.wordsCursor > 0 {
+			m.wordsCursor--
+		}
+	case "i":
+		m.wordsInputMode = true
+		m.wordsInputBuffer = "|  |  |  |"
+		m.wordsEditingAction = "insert"
+		m.statusMsg = "Insert new row. Enter to confirm."
+	case "u":
+		if m.wordsCursor >= 0 && m.wordsCursor < n {
+			c := m.parsedWords[m.wordsCursor]
+			m.wordsInputBuffer = fmt.Sprintf("| %s | %s | %s |", c.word, c.translation, c.example)
+			m.wordsInputMode = true
+			m.wordsEditingAction = "update"
+			m.statusMsg = "Update row. Edit and press Enter to save."
+		}
+	case "d":
+		if m.wordsCursor >= 0 && m.wordsCursor < n {
+			m.parsedWords = append(m.parsedWords[:m.wordsCursor], m.parsedWords[m.wordsCursor+1:]...)
+			m.words = buildWordsMarkdown(m.parsedWords)
+			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
+			if m.wordsCursor >= len(m.parsedWords) {
+				m.wordsCursor = len(m.parsedWords) - 1
+			}
+			m.statusMsg = "Deleted row"
+		}
+	case "enter":
+		if m.wordsInputMode {
+			cols := splitMarkdownRow(m.wordsInputBuffer)
+			if len(cols) >= 2 {
+				w := strings.TrimSpace(cols[0])
+				t := strings.TrimSpace(cols[1])
+				e := ""
+				if len(cols) >= 3 {
+					e = strings.TrimSpace(cols[2])
+				}
+				if m.wordsEditingAction == "insert" {
+					insertAt := m.wordsCursor + 1
+					if insertAt < 0 {
+						insertAt = 0
+					}
+					new := flashcard{word: w, translation: t, example: e}
+					if insertAt >= len(m.parsedWords) {
+						m.parsedWords = append(m.parsedWords, new)
+					} else {
+						head := append([]flashcard{}, m.parsedWords[:insertAt]...)
+						head = append(head, new)
+						m.parsedWords = append(head, m.parsedWords[insertAt:]...)
+					}
+				} else if m.wordsEditingAction == "update" {
+					if m.wordsCursor >= 0 && m.wordsCursor < len(m.parsedWords) {
+						m.parsedWords[m.wordsCursor] = flashcard{word: w, translation: t, example: e}
+					}
+				}
+				m.words = buildWordsMarkdown(m.parsedWords)
+				_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
+				m.wordsInputMode = false
+				m.wordsEditingAction = ""
+				m.statusMsg = "Saved words"
+			} else {
+				m.statusMsg = "Invalid row format"
 			}
 		}
 	}
