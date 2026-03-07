@@ -44,7 +44,7 @@ export const ListeningStep = ({
     </div>
     <div className="rounded border border-[#24283b] bg-[#141724] p-4">
       <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">Reading Text</p>
-      <div className="mt-3 h-44 overflow-y-auto rounded border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
+      <div className="mt-3 max-h-[480px] overflow-y-auto rounded border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
         {readingOutput ? (
           <pre className="whitespace-pre-wrap">{readingOutput}</pre>
         ) : (

@@ -84,7 +84,7 @@ export const ReadingStep = ({
       </div>
       <div className="rounded border border-[#24283b] bg-[#0f111a] p-4 text-sm leading-relaxed text-[#cdd6f4]">
         {readingOutput ? (
-          <div className="whitespace-pre-wrap">{readingOutput}</div>
+          <div className="whitespace-pre-wrap max-h-[480px] overflow-y-auto">{readingOutput}</div>
         ) : (
           <p className="text-[13px] text-[#5b647b]">Generate the topic to display the reading text.</p>
         )}
