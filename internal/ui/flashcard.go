@@ -90,10 +90,13 @@ func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.flashcardFlipped = !m.flashcardFlipped
 
 	case "right", "l":
+		// Advance to next flashcard; wrap to the first after the last
 		if m.flashcardIndex < n-1 {
 			m.flashcardIndex++
-			m.flashcardFlipped = false
+		} else {
+			m.flashcardIndex = 0
 		}
+		m.flashcardFlipped = false
 
 	case "left", "h":
 		if m.flashcardIndex > 0 {
