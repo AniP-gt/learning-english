@@ -61,7 +61,7 @@ export const SpeechStep = ({
     {speechFeedback && (
       <div className="rounded border border-[#24283b] bg-[#141724] p-4">
         <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Gemini Feedback</p>
-        <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#cdd6f4]">{speechFeedback}</pre>
+      <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-[#cdd6f4] max-h-[480px] overflow-y-auto">{speechFeedback}</pre>
       </div>
     )}
   </section>

@@ -25,7 +25,7 @@ export const SceneStep = ({
     </div>
     <div className="rounded border border-[#24283b] bg-[#16161e] p-4 text-[13px] text-[#cdd6f4]">
       <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Source text</p>
-      <p className="mt-2 leading-relaxed text-[#cdd6f4]">
+      <p className="mt-2 leading-relaxed text-[#cdd6f4] max-h-[480px] overflow-y-auto">
         {sceneSourceText || "Use Step 5 speech input or the reading text to seed the visualization."}
       </p>
     </div>
