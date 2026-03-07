@@ -23,8 +23,13 @@ export const FlashcardModal = ({ cards, onClose }: FlashcardModalProps) => {
   const checkedCount = checked.filter(Boolean).length;
 
   const goNext = useCallback(() => {
+    if (total === 0) return;
     if (index < total - 1) {
       setIndex((i) => i + 1);
+      setFlipped(false);
+    } else {
+      // wrap to first card when pressing next on the last card
+      setIndex(0);
       setFlipped(false);
     }
   }, [index, total]);
@@ -184,9 +189,9 @@ export const FlashcardModal = ({ cards, onClose }: FlashcardModalProps) => {
           <button
             type="button"
             onClick={goNext}
-            disabled={index === total - 1}
+            disabled={total === 0}
             className="flex-1 rounded border border-[#24283b] px-4 py-2 text-[12px] text-[#7aa2f7] uppercase tracking-[0.3em] hover:border-[#7aa2f7] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Next (→ / l)"
+            title="Next (→ / l) - wraps to first after last"
           >
             Next →
           </button>
