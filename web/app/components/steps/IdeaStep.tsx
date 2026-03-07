@@ -85,7 +85,7 @@ export const IdeaStep = ({
           <span className="text-[11px] text-[#5b647b]">まだ生成されていません</span>
         )}
       </div>
-      <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
+      <div className="whitespace-pre-wrap text-[13px] leading-relaxed max-h-80 overflow-y-auto">
         {ideaResponse || "生成したトピックがここに表示されます。"}
       </div>
       {derivedStage !== "idle" && (

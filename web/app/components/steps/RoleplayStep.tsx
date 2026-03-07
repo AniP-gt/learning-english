@@ -37,7 +37,7 @@ export const RoleplayStep = ({
       </div>
       <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] text-[#bb9af7]">Live talk</span>
     </div>
-    <div className="h-48 sm:h-72 overflow-y-auto rounded border border-[#24283b] bg-[#141724] p-4 text-sm">
+    <div className="h-72 sm:h-96 overflow-y-auto rounded border border-[#24283b] bg-[#141724] p-4 text-sm">
       {chatHistory.length === 0 ? (
         <p className="text-[12px] text-[#5b647b]">Send a message to start the roleplay.</p>
       ) : (
@@ -105,10 +105,10 @@ export const RoleplayStep = ({
       </div>
       {feedbackError && <p className="text-[12px] text-[#f7768e]">{feedbackError}</p>}
       {feedbackMessage && (
-        <div className="rounded border border-[#24283b] bg-[#1f2335] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">Feedback</div>
-          <p className="mt-2 whitespace-pre-wrap">{feedbackMessage}</p>
-        </div>
+          <div className="rounded border border-[#24283b] bg-[#1f2335] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
+           <div className="text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">Feedback</div>
+           <p className="mt-2 whitespace-pre-wrap max-h-64 overflow-y-auto">{feedbackMessage}</p>
+          </div>
       )}
     </div>
   </section>
