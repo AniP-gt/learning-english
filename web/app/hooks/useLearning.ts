@@ -101,6 +101,68 @@ export const useLearning = () => {
 
   const wordsTable = useMemo<WordsTable>(() => parseMarkdownTable(wordsOutput), [wordsOutput]);
   const wordsCount = wordsTable?.rows.length ?? 0;
+
+  const buildWordsMarkdown = useCallback((headers: string[], rows: string[][]): string => {
+    const separator = headers.map(() => "---").join(" | ");
+    const headerLine = `| ${headers.join(" | ")} |`;
+    const separatorLine = `| ${separator} |`;
+    const rowLines = rows.map((row) => `| ${row.join(" | ")} |`);
+    return [headerLine, separatorLine, ...rowLines].join("\n") + "\n";
+  }, []);
+
+  const saveWordsToFile = useCallback(
+    async (markdown: string) => {
+      if (!currentWeekKey) {
+        return;
+      }
+      const encoded = encodeURIComponent(currentWeekKey);
+      await fetch(`/api/weeks/${encoded}/files`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ words: markdown }),
+      });
+    },
+    [currentWeekKey]
+  );
+
+  const handleAddWord = useCallback(
+    async (newRow: string[]) => {
+      if (!wordsTable) {
+        return;
+      }
+      const updated = { ...wordsTable, rows: [...wordsTable.rows, newRow] };
+      const markdown = buildWordsMarkdown(updated.headers, updated.rows);
+      setWordsOutput(markdown);
+      await saveWordsToFile(markdown);
+    },
+    [wordsTable, buildWordsMarkdown, saveWordsToFile]
+  );
+
+  const handleEditWord = useCallback(
+    async (rowIndex: number, updatedRow: string[]) => {
+      if (!wordsTable) {
+        return;
+      }
+      const newRows = wordsTable.rows.map((row, i) => (i === rowIndex ? updatedRow : row));
+      const markdown = buildWordsMarkdown(wordsTable.headers, newRows);
+      setWordsOutput(markdown);
+      await saveWordsToFile(markdown);
+    },
+    [wordsTable, buildWordsMarkdown, saveWordsToFile]
+  );
+
+  const handleDeleteWord = useCallback(
+    async (rowIndex: number) => {
+      if (!wordsTable) {
+        return;
+      }
+      const newRows = wordsTable.rows.filter((_, i) => i !== rowIndex);
+      const markdown = buildWordsMarkdown(wordsTable.headers, newRows);
+      setWordsOutput(markdown);
+      await saveWordsToFile(markdown);
+    },
+    [wordsTable, buildWordsMarkdown, saveWordsToFile]
+  );
   const sceneSourceText = useMemo(() => {
     const spoken = speechText.trim();
     if (spoken) {
@@ -318,6 +380,9 @@ export const useLearning = () => {
     wordsCount,
     readingWordCount,
     hasUserMessage,
+    handleAddWord,
+    handleEditWord,
+    handleDeleteWord,
     voices,
     selectedVoice,
     setSelectedVoice,
