@@ -87,6 +87,9 @@ export default function HomePage() {
           onSave={learning.saveSettings}
           geminiModel={learning.geminiModel}
           onGeminiModelChange={learning.setGeminiModel}
+          voices={learning.voices}
+          voice={learning.voice}
+          onVoiceChange={learning.setVoice}
         />
     </div>
   );

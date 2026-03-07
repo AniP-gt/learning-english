@@ -22,6 +22,8 @@ export const useLearning = () => {
     setSettingsOpen,
     settingsMessage,
     saveSettings,
+    voice,
+    setVoice,
   } = useSettings();
 
   const [topicInput, setTopicInput] = useState("");
@@ -95,7 +97,7 @@ export const useLearning = () => {
     listeningSupported,
     handleSpeak,
     handleStop,
-  } = useSpeech({ readingOutput });
+  } = useSpeech({ readingOutput, initialVoice: voice, onVoiceChange: setVoice });
 
   const { timerSeconds, isTiming, handleStartTimer, handleStopTimer, resetTimer, wpmResult } = useTimer({
     readingOutput,
@@ -407,5 +409,7 @@ export const useLearning = () => {
     loadWeekFiles,
     currentWeekKey,
     reviewsCopy,
+    voice,
+    setVoice,
   };
 };

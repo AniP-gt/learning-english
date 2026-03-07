@@ -5,9 +5,11 @@ import { SpeakVoice } from "../lib/types";
 
 type UseSpeechParams = {
   readingOutput: string;
+  initialVoice?: string;
+  onVoiceChange?: (voiceURI: string) => void;
 };
 
-export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
+export const useSpeech = ({ readingOutput, initialVoice, onVoiceChange }: UseSpeechParams) => {
   const [voices, setVoices] = useState<SpeakVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState("");
   const [speechRate, setSpeechRate] = useState(1);
@@ -42,7 +44,9 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
         voiceURI: voice.voiceURI,
       }));
       setVoices(normalized);
-      setSelectedVoice((prev) => prev || normalized[0]?.voiceURI || "");
+      // Preserve an externally-provided initial selection (from settings) when available.
+      // If none, default to the first available voice so the UI is usable immediately.
+      setSelectedVoice((prev) => prev || initialVoice || normalized[0]?.voiceURI || "");
     };
     loadVoices();
     synthesizer.addEventListener("voiceschanged", loadVoices);
@@ -51,6 +55,13 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
       synthesizer.removeEventListener("voiceschanged", loadVoices);
     };
   }, []);
+
+  // If an initialVoice becomes available after mount (settings loaded), prefer it
+  useEffect(() => {
+    if (initialVoice && !selectedVoice) {
+      setSelectedVoice(initialVoice);
+    }
+  }, [initialVoice, selectedVoice]);
 
   const handleSpeak = useCallback(() => {
     if (!listeningSupported || !readingOutput || typeof window === "undefined") {
@@ -104,6 +115,17 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
     utteranceRef.current = null;
     setIsSpeaking(false);
   }, []);
+
+  // When selectedVoice changes, notify external settings persistence if provided
+  useEffect(() => {
+    if (selectedVoice && typeof onVoiceChange === "function") {
+      try {
+        onVoiceChange(selectedVoice);
+      } catch (e) {
+        // swallow errors from external callback to avoid breaking speech behavior
+      }
+    }
+  }, [selectedVoice, onVoiceChange]);
 
   return {
     voices,

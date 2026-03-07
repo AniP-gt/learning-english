@@ -3,6 +3,7 @@
 import { CEFRLevel } from "../types";
 import { cefrLevels } from "../lib/constants";
 import { geminiModels, imageGeminiModel, type GeminiModel } from "../lib/geminiModels";
+import { SpeakVoice } from "../lib/types";
 
 type SettingsPanelProps = {
   open: boolean;
@@ -15,6 +16,9 @@ type SettingsPanelProps = {
   onSave: () => void;
   geminiModel: GeminiModel;
   onGeminiModelChange: (model: GeminiModel) => void;
+  voices?: SpeakVoice[];
+  voice?: string;
+  onVoiceChange?: (voiceURI: string) => void;
 };
 
 export const SettingsPanel = ({
@@ -28,6 +32,9 @@ export const SettingsPanel = ({
   onSave,
   geminiModel,
   onGeminiModelChange,
+  voices,
+  voice,
+  onVoiceChange,
 }: SettingsPanelProps) => (
   <>
     {open && <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />}
@@ -97,6 +104,28 @@ export const SettingsPanel = ({
       <p className="mt-2 text-[11px] text-[#5b647b]">
         The selected model is used for text generation. Image prompts remain pinned to {imageGeminiModel}.
       </p>
+
+      <div className="mt-6 text-[11px] uppercase tracking-[0.4em] text-[#5b647b]">Default Voice</div>
+      <label className="mt-2 block text-sm">
+        <select
+          value={voice || ""}
+          onChange={(e) => onVoiceChange?.(e.target.value)}
+          className="mt-2 w-full rounded border border-[#24283b] bg-[#121422] px-3 py-2 text-sm text-[#cdd6f4] focus:border-[#7aa2f7]"
+        >
+          {voices && voices.length ? (
+            <>
+              <option value="">System default</option>
+              {voices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </>
+          ) : (
+            <option value="">No voices available</option>
+          )}
+        </select>
+      </label>
 
       <button
         type="button"
