@@ -13,8 +13,14 @@ import (
 
 const (
 	baseURL  = "https://generativelanguage.googleapis.com/v1beta/models"
-	maxRetry = 5
+	maxRetry = 3
 )
+
+var fallbackModels = []string{
+	"gemini-2.5-flash",
+	"gemini-2.5-flash-lite",
+	"gemini-2.0-flash",
+}
 
 type Client struct {
 	apiKey     string
@@ -80,11 +86,7 @@ type generateResponse struct {
 	} `json:"candidates"`
 }
 
-func (c *Client) generate(prompt string) (string, error) {
-	if c.apiKey == "" {
-		return "", fmt.Errorf("GEMINI_API_KEY not set")
-	}
-
+func (c *Client) generateWithModel(prompt, model string) (string, error) {
 	reqBody := generateRequest{
 		Contents: []content{{Parts: []part{{Text: prompt}}}},
 	}
@@ -94,7 +96,7 @@ func (c *Client) generate(prompt string) (string, error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, c.modelName, c.apiKey)
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, model, c.apiKey)
 
 	var lastErr error
 	for attempt := 0; attempt < maxRetry; attempt++ {
@@ -108,14 +110,20 @@ func (c *Client) generate(prompt string) (string, error) {
 			lastErr = err
 			continue
 		}
-		defer resp.Body.Close()
 
-		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			return "", fmt.Errorf("HTTP 429")
+		}
+
+		if resp.StatusCode >= 500 {
+			resp.Body.Close()
 			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
 			continue
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			return "", err
 		}
@@ -137,6 +145,41 @@ func (c *Client) generate(prompt string) (string, error) {
 	}
 
 	return "", fmt.Errorf("max retries exceeded: %w", lastErr)
+}
+
+func (c *Client) generate(prompt string) (string, error) {
+	if c.apiKey == "" {
+		return "", fmt.Errorf("GEMINI_API_KEY not set")
+	}
+
+	modelsToTry := buildModelQueue(c.modelName, fallbackModels)
+
+	var lastErr error
+	for _, model := range modelsToTry {
+		result, err := c.generateWithModel(prompt, model)
+		if err == nil {
+			if model != c.modelName {
+				fmt.Fprintf(os.Stderr, "gemini: switched to fallback model %s\n", model)
+			}
+			return result, nil
+		}
+		lastErr = err
+		if err.Error() != "HTTP 429" {
+			return "", err
+		}
+	}
+
+	return "", fmt.Errorf("all models rate limited: %w", lastErr)
+}
+
+func buildModelQueue(primary string, fallbacks []string) []string {
+	queue := []string{primary}
+	for _, m := range fallbacks {
+		if m != primary {
+			queue = append(queue, m)
+		}
+	}
+	return queue
 }
 
 func (c *Client) GenerateTopicFromJapanese(japaneseText string) (string, error) {
@@ -380,7 +423,10 @@ func (c *Client) GenerateImage(prompt string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("GEMINI_API_KEY not set")
 	}
 
-	const imageModel = "gemini-2.5-flash-image"
+	const primaryImageModel = "gemini-2.0-flash-preview-image-generation"
+	imageFallbacks := []string{"gemini-2.5-flash-preview-04-17"}
+
+	imageModels := buildModelQueue(primaryImageModel, imageFallbacks)
 
 	reqBody := imageGenerateRequest{
 		Contents: []imageContent{{Parts: []imagePart{{Text: prompt}}}},
@@ -394,59 +440,78 @@ func (c *Client) GenerateImage(prompt string) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, imageModel, c.apiKey)
-
 	var lastErr error
-	for attempt := 0; attempt < maxRetry; attempt++ {
-		if attempt > 0 {
-			wait := time.Duration(1<<uint(attempt)) * time.Second
-			time.Sleep(wait)
-		}
+	for _, imageModel := range imageModels {
+		url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, imageModel, c.apiKey)
 
-		resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
-			continue
-		}
-
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, "", err
-		}
-
-		if resp.StatusCode != 200 {
-			return nil, "", fmt.Errorf("image API error %d: %s", resp.StatusCode, string(respBody))
-		}
-
-		var result imageGenerateResponse
-		if err := json.Unmarshal(respBody, &result); err != nil {
-			return nil, "", err
-		}
-
-		if len(result.Candidates) == 0 {
-			return nil, "", fmt.Errorf("empty response from image API")
-		}
-
-		for _, part := range result.Candidates[0].Content.Parts {
-			if part.InlineData != nil && part.InlineData.Data != "" {
-				imgBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
-				if err != nil {
-					return nil, "", fmt.Errorf("failed to decode image data: %w", err)
-				}
-				return imgBytes, part.InlineData.MimeType, nil
+		var modelErr error
+		for attempt := 0; attempt < maxRetry; attempt++ {
+			if attempt > 0 {
+				wait := time.Duration(1<<uint(attempt)) * time.Second
+				time.Sleep(wait)
 			}
+
+			resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
+			if err != nil {
+				modelErr = err
+				continue
+			}
+
+			if resp.StatusCode == 429 {
+				resp.Body.Close()
+				modelErr = fmt.Errorf("HTTP 429")
+				break
+			}
+
+			if resp.StatusCode >= 500 {
+				resp.Body.Close()
+				modelErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+				continue
+			}
+
+			respBody, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return nil, "", err
+			}
+
+			if resp.StatusCode != 200 {
+				return nil, "", fmt.Errorf("image API error %d: %s", resp.StatusCode, string(respBody))
+			}
+
+			var result imageGenerateResponse
+			if err := json.Unmarshal(respBody, &result); err != nil {
+				return nil, "", err
+			}
+
+			if len(result.Candidates) == 0 {
+				return nil, "", fmt.Errorf("empty response from image API")
+			}
+
+			for _, part := range result.Candidates[0].Content.Parts {
+				if part.InlineData != nil && part.InlineData.Data != "" {
+					imgBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+					if err != nil {
+						return nil, "", fmt.Errorf("failed to decode image data: %w", err)
+					}
+					return imgBytes, part.InlineData.MimeType, nil
+				}
+			}
+
+			return nil, "", fmt.Errorf("no image data in response")
 		}
 
-		return nil, "", fmt.Errorf("no image data in response")
+		lastErr = modelErr
+		if modelErr != nil && modelErr.Error() != "HTTP 429" {
+			return nil, "", modelErr
+		}
+
+		if imageModel != primaryImageModel {
+			fmt.Fprintf(os.Stderr, "gemini: image switched to fallback model %s\n", imageModel)
+		}
 	}
 
-	return nil, "", fmt.Errorf("max retries exceeded: %w", lastErr)
+	return nil, "", fmt.Errorf("all image models rate limited: %w", lastErr)
 }
 
 func (c *Client) GenerateImageForScene(speechText string) ([]byte, string, error) {

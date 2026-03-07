@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CEFRLevel, GenerateRequestPayload, ChatHistoryEntry } from "../../types";
-
-const MODEL_NAME = "gemini-2.5-flash";
+import {
+  defaultGeminiModel,
+  geminiModels,
+  imageGeminiModel,
+} from "../../lib/geminiModels";
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_CEFR: CEFRLevel = "B1";
 const VALID_CEFR_LEVELS: CEFRLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -155,6 +158,48 @@ const createRequestBody = (prompt: string) => ({
   ],
 });
 
+async function callGeminiWithFallback(
+  modelsToTry: readonly string[],
+  prompt: string,
+  apiKey: string
+): Promise<{ content: string; model: string }> {
+  const payload = createRequestBody(prompt);
+
+  for (const model of modelsToTry) {
+    const url = `${BASE_URL}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+    } catch {
+      throw new Error("Failed to reach Gemini");
+    }
+
+    if (response.status === 429) {
+      continue;
+    }
+
+    if (!response.ok) {
+      const raw = await response.text();
+      throw new Error(raw || `Gemini request failed (${response.status})`);
+    }
+
+    const raw = await response.text();
+    const parsed = JSON.parse(raw);
+    const candidate = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!candidate) {
+      throw new Error("Gemini returned an empty result");
+    }
+    return { content: candidate, model };
+  }
+
+  throw new Error("All Gemini models are rate limited (429). Please try again later.");
+}
+
 export async function POST(request: NextRequest) {
   let body: GenerateRequestPayload;
   try {
@@ -163,7 +208,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
 
-  const { action, input, cefrLevel } = body;
+  const { action, input, cefrLevel, model } = body;
 
   if (!action || !input) {
     return NextResponse.json({ error: "action and input are required" }, { status: 400 });
@@ -187,36 +232,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Gemini API key is not configured" }, { status: 401 });
   }
 
-  const url = `${BASE_URL}/${MODEL_NAME}:generateContent?key=${encodeURIComponent(key)}`;
-  const payload = createRequestBody(prompt);
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to reach Gemini" }, { status: 502 });
-  }
-
-  const raw = await response.text();
-  if (!response.ok) {
-    return NextResponse.json({ error: raw || "Gemini request failed" }, { status: response.status });
-  }
+  const candidateModel = model ?? defaultGeminiModel;
+  const resolvedModel = geminiModels.includes(candidateModel) ? candidateModel : defaultGeminiModel;
+  const modelQueue = [resolvedModel, ...geminiModels.filter((item) => item !== resolvedModel)];
+  const modelsToTry = action === "image_prompt" ? [imageGeminiModel] : modelQueue;
 
   try {
-    const parsed = JSON.parse(raw);
-    const candidate = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidate) {
-      return NextResponse.json({ error: "Gemini returned an empty result" }, { status: 502 });
-    }
-    return NextResponse.json({ content: candidate });
+    const { content } = await callGeminiWithFallback(modelsToTry, prompt, key);
+    return NextResponse.json({ content });
   } catch (error) {
-    return NextResponse.json({ error: "Unable to parse Gemini response" }, { status: 502 });
+    const message = (error as Error).message;
+    const status = message.includes("rate limited") ? 429 : 502;
+    return NextResponse.json({ error: message }, { status });
   }
 }
