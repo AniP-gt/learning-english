@@ -11,6 +11,7 @@ type ListeningStepProps = {
   speechRate: number;
   onSpeechRateChange: (value: number) => void;
   handleSpeak: () => void;
+  handleStop: () => void;
   isSpeaking: boolean;
 };
 
@@ -23,6 +24,7 @@ export const ListeningStep = ({
   speechRate,
   onSpeechRateChange,
   handleSpeak,
+  handleStop,
   isSpeaking,
 }: ListeningStepProps) => (
   <section className="space-y-6 step-section">
@@ -84,13 +86,13 @@ export const ListeningStep = ({
         <div className="mt-2 text-[11px] text-[#5b647b]">Adjust to mirror natural pace.</div>
       </label>
     </div>
-    <div className="flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        onClick={handleSpeak}
-        disabled={!readingOutput || !listeningSupported || voices.length === 0}
-        className="flex items-center gap-2 rounded-full bg-[#9ece6a] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
-      >
+  <div className="flex flex-wrap items-center gap-3">
+    <button
+      type="button"
+      onClick={handleSpeak}
+      disabled={!readingOutput || !listeningSupported || voices.length === 0}
+      className="flex items-center gap-2 rounded-full bg-[#9ece6a] px-6 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#1a1b26] transition hover:brightness-110 disabled:opacity-40"
+    >
         {isSpeaking ? (
           <>
             <span className="spinner" />
@@ -99,6 +101,14 @@ export const ListeningStep = ({
         ) : (
           "Speak"
         )}
+    </button>
+      <button
+        type="button"
+        onClick={handleStop}
+        disabled={!isSpeaking}
+        className="flex items-center gap-2 rounded-full border border-[#f7768e] px-4 py-2 text-xs font-bold uppercase tracking-[0.4em] text-[#f7768e] transition hover:brightness-110 disabled:opacity-40"
+      >
+        Stop
       </button>
       <div className="text-[11px] text-[#5b647b]">
         {listeningSupported ? (

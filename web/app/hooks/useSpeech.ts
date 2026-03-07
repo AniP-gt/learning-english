@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SpeakVoice } from "../lib/types";
 
 type UseSpeechParams = {
@@ -62,6 +62,8 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
     }
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(readingOutput);
+    // keep a reference so stop can target the exact utterance if needed
+    utteranceRef.current = utterance;
     const preferredVoice = voices.find((voice) => voice.voiceURI === selectedVoice);
     if (preferredVoice) {
       const available = synth.getVoices();
@@ -71,11 +73,37 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
       }
     }
     utterance.rate = Math.min(Math.max(speechRate, 0.5), 2);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      // only clear if the current utterance is this one
+      if (utteranceRef.current === utterance) utteranceRef.current = null;
+      setIsSpeaking(false);
+    };
+    utterance.onerror = () => {
+      if (utteranceRef.current === utterance) utteranceRef.current = null;
+      setIsSpeaking(false);
+    };
     setIsSpeaking(true);
     synth.speak(utterance);
   }, [listeningSupported, readingOutput, selectedVoice, voices, speechRate]);
+
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const handleStop = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    // Try a gentle pause then cancel to ensure playback stops across platforms
+    try {
+      synth.pause();
+    } catch (e) {
+      // ignore
+    }
+    // Cancel any ongoing or queued utterances
+    synth.cancel();
+    // clear the active utterance reference
+    utteranceRef.current = null;
+    setIsSpeaking(false);
+  }, []);
 
   return {
     voices,
@@ -86,5 +114,6 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
     isSpeaking,
     listeningSupported,
     handleSpeak,
+    handleStop,
   };
 };

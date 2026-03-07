@@ -94,6 +94,7 @@ export const useLearning = () => {
     isSpeaking,
     listeningSupported,
     handleSpeak,
+    handleStop,
   } = useSpeech({ readingOutput });
 
   const { timerSeconds, isTiming, handleStartTimer, handleStopTimer, resetTimer, wpmResult } = useTimer({
@@ -396,6 +397,7 @@ export const useLearning = () => {
     isSpeaking,
     listeningSupported,
     handleSpeak,
+    handleStop,
     weeks,
     weeksLoading,
     weeksError,
