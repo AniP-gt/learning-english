@@ -19,14 +19,19 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
       return;
     }
     const supported = "speechSynthesis" in window;
-    setListeningSupported(supported);
+    const timeoutId = window.setTimeout(() => {
+      setListeningSupported(supported);
+    }, 0);
+
     if (!supported) {
-      return;
+      return () => window.clearTimeout(timeoutId);
     }
+
     const synthesizer = window.speechSynthesis;
     if (!synthesizer) {
-      return;
+      return () => window.clearTimeout(timeoutId);
     }
+
     const loadVoices = () => {
       const available = synthesizer.getVoices();
       const englishVoices = available.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
@@ -42,6 +47,7 @@ export const useSpeech = ({ readingOutput }: UseSpeechParams) => {
     loadVoices();
     synthesizer.addEventListener("voiceschanged", loadVoices);
     return () => {
+      window.clearTimeout(timeoutId);
       synthesizer.removeEventListener("voiceschanged", loadVoices);
     };
   }, []);

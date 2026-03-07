@@ -2,6 +2,7 @@
 
 import { CEFRLevel } from "../types";
 import { cefrLevels } from "../lib/constants";
+import { geminiModels, imageGeminiModel, type GeminiModel } from "../lib/geminiModels";
 
 type SettingsPanelProps = {
   open: boolean;
@@ -12,6 +13,8 @@ type SettingsPanelProps = {
   onApiKeyChange: (key: string) => void;
   onCefrLevelChange: (level: CEFRLevel) => void;
   onSave: () => void;
+  geminiModel: GeminiModel;
+  onGeminiModelChange: (model: GeminiModel) => void;
 };
 
 export const SettingsPanel = ({
@@ -23,6 +26,8 @@ export const SettingsPanel = ({
   onApiKeyChange,
   onCefrLevelChange,
   onSave,
+  geminiModel,
+  onGeminiModelChange,
 }: SettingsPanelProps) => (
   <>
     {open && <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />}
@@ -71,6 +76,27 @@ export const SettingsPanel = ({
           </button>
         ))}
       </div>
+
+      <div className="mt-6 text-[11px] uppercase tracking-[0.4em] text-[#5b647b]">Gemini Model</div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {geminiModels.map((model) => (
+          <button
+            key={model}
+            type="button"
+            onClick={() => onGeminiModelChange(model)}
+            className={`rounded-full px-4 py-1 text-[10px] uppercase tracking-[0.3em] transition ${
+              geminiModel === model
+                ? "border border-[#9ece6a] bg-[#9ece6a]/20 text-[#9ece6a]"
+                : "border border-[#24283b] text-[#5b647b]"
+            }`}
+          >
+            {model}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-[#5b647b]">
+        The selected model is used for text generation. Image prompts remain pinned to {imageGeminiModel}.
+      </p>
 
       <button
         type="button"

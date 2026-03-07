@@ -3,10 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CEFRLevel } from "../types";
 import { cefrLevels } from "../lib/constants";
+import {
+  defaultGeminiModel,
+  geminiModels,
+  type GeminiModel,
+} from "../lib/geminiModels";
 
 export const useSettings = () => {
   const [apiKey, setApiKey] = useState("");
   const [cefrLevel, setCefrLevel] = useState<CEFRLevel>("B1");
+  const [geminiModel, setGeminiModel] = useState<GeminiModel>(defaultGeminiModel);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState("");
   const timeoutRef = useRef<number | null>(null);
@@ -17,12 +23,27 @@ export const useSettings = () => {
     }
     const storedKey = localStorage.getItem("learning-api-key");
     const storedLevel = localStorage.getItem("learning-cefr-level") as CEFRLevel | null;
-    if (storedKey) {
-      setApiKey(storedKey);
+    const storedModel = localStorage.getItem("learning-gemini-model") as GeminiModel | null;
+
+    if (!storedKey && !storedLevel && !storedModel) {
+      return;
     }
-    if (storedLevel && cefrLevels.includes(storedLevel)) {
-      setCefrLevel(storedLevel);
-    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (storedKey) {
+        setApiKey(storedKey);
+      }
+      if (storedLevel && cefrLevels.includes(storedLevel)) {
+        setCefrLevel(storedLevel);
+      }
+      if (storedModel && geminiModels.includes(storedModel)) {
+        setGeminiModel(storedModel);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -39,6 +60,7 @@ export const useSettings = () => {
     }
     localStorage.setItem("learning-api-key", apiKey);
     localStorage.setItem("learning-cefr-level", cefrLevel);
+    localStorage.setItem("learning-gemini-model", geminiModel);
     setSettingsMessage("Settings saved locally");
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -47,13 +69,15 @@ export const useSettings = () => {
       setSettingsMessage("");
       timeoutRef.current = null;
     }, 2500);
-  }, [apiKey, cefrLevel]);
+  }, [apiKey, cefrLevel, geminiModel]);
 
   return {
     apiKey,
     setApiKey,
     cefrLevel,
     setCefrLevel,
+    geminiModel,
+    setGeminiModel,
     settingsOpen,
     setSettingsOpen,
     settingsMessage,

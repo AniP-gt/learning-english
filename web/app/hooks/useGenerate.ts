@@ -3,12 +3,14 @@
 import { Dispatch, SetStateAction, useCallback } from "react";
 import { CEFRLevel, GenerateRequestPayload } from "../types";
 import { stripReadingHeader } from "../lib/constants";
+import { type GeminiModel } from "../lib/geminiModels";
 
 type StatusSetter = Dispatch<SetStateAction<"idle" | "loading" | "ready">>;
 
 type UseGenerateParams = {
   apiKey: string;
   cefrLevel: CEFRLevel;
+  geminiModel: GeminiModel;
   setWordsOutput: Dispatch<SetStateAction<string>>;
   setWordsStatus: StatusSetter;
   setReadingOutput: Dispatch<SetStateAction<string>>;
@@ -18,6 +20,7 @@ type UseGenerateParams = {
 export const useGenerate = ({
   apiKey,
   cefrLevel,
+  geminiModel,
   setWordsOutput,
   setWordsStatus,
   setReadingOutput,
@@ -34,7 +37,7 @@ export const useGenerate = ({
     const response = await fetch("/api/generate", {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, cefrLevel, model: geminiModel }),
       cache: "no-store",
     });
 
@@ -48,7 +51,7 @@ export const useGenerate = ({
       throw new Error("Gemini returned empty content");
     }
     return data.content as string;
-  }, [apiKey]);
+  }, [apiKey, cefrLevel]);
 
   const generateWordsForTopic = useCallback(
     async (topic: string) => {

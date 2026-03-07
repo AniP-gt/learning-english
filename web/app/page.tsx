@@ -76,16 +76,18 @@ export default function HomePage() {
           <span className="text-[#7aa2f7]">Step {activeStep}/7</span>
         </footer>
       </div>
-      <SettingsPanel
-        open={learning.settingsOpen}
-        apiKey={learning.apiKey}
-        cefrLevel={learning.cefrLevel}
-        settingsMessage={learning.settingsMessage}
-        onClose={() => learning.setSettingsOpen(false)}
-        onApiKeyChange={learning.setApiKey}
-        onCefrLevelChange={learning.setCefrLevel}
-        onSave={learning.saveSettings}
-      />
+        <SettingsPanel
+          open={learning.settingsOpen}
+          apiKey={learning.apiKey}
+          cefrLevel={learning.cefrLevel}
+          settingsMessage={learning.settingsMessage}
+          onClose={() => learning.setSettingsOpen(false)}
+          onApiKeyChange={learning.setApiKey}
+          onCefrLevelChange={learning.setCefrLevel}
+          onSave={learning.saveSettings}
+          geminiModel={learning.geminiModel}
+          onGeminiModelChange={learning.setGeminiModel}
+        />
     </div>
   );
 }
