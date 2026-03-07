@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { WordsTable } from "../../lib/types";
+import { FlashcardModal } from "../FlashcardModal";
 
 type WordsStepProps = {
   wordsTable: WordsTable;
@@ -29,10 +30,22 @@ export const WordsStep = ({
   const [addingRow, setAddingRow] = useState(false);
   const [newRowCells, setNewRowCells] = useState<string[]>(emptyRow(colCount));
   const [saving, setSaving] = useState(false);
+  const [flashcardOpen, setFlashcardOpen] = useState(false);
+
+  const flashcards = wordsTable
+    ? wordsTable.rows.map((row) => ({
+        word: row[0] ?? "",
+        translation: row[1] ?? "",
+        example: row[2] ?? "",
+      })).filter((c) => c.word && c.translation)
+    : [];
 
   const startEdit = (rowIndex: number, row: string[]) => {
     setEditingRowIndex(rowIndex);
-    setEditingCells([...row]);
+    // Pad the editing cells so we always show inputs for all headers
+    const padded = [...row];
+    while (padded.length < colCount) padded.push("");
+    setEditingCells(padded);
     setAddingRow(false);
   };
 
@@ -100,6 +113,16 @@ export const WordsStep = ({
           >
             g
           </button>
+          {wordsTable && flashcards.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFlashcardOpen(true)}
+              className="rounded-full border border-[#24283b] px-3 py-1 text-[#e0af68] hover:border-[#e0af68] transition-colors"
+              title="Flashcard mode (f)"
+            >
+              flashcard
+            </button>
+          )}
           {wordsTable && (
             <button
               type="button"
@@ -178,12 +201,12 @@ export const WordsStep = ({
                     </>
                   ) : (
                     <>
-                      {row.map((cell, cellIndex) => (
+                      {Array.from({ length: colCount }).map((_, cellIndex) => (
                         <td
                           key={`${rowIndex}-${cellIndex}`}
                           className="border-b border-[#24283b] px-2 py-3 align-top text-[13px] text-[#cdd6f4]"
                         >
-                          {cell}
+                          {row[cellIndex] ?? ""}
                         </td>
                       ))}
                       <td className="border-b border-[#24283b] px-2 py-3 align-top text-right">
@@ -264,6 +287,9 @@ export const WordsStep = ({
           </div>
         )}
       </div>
+      {flashcardOpen && flashcards.length > 0 && (
+        <FlashcardModal cards={flashcards} onClose={() => setFlashcardOpen(false)} />
+      )}
     </section>
   );
 };
