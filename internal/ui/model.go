@@ -177,6 +177,9 @@ func extractBodyFromMarkdown(content string) string {
 			continue
 		}
 		if inBody {
+			if strings.HasPrefix(line, "CEFR:") {
+				continue
+			}
 			body = append(body, line)
 		}
 	}
