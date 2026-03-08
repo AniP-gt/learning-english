@@ -131,6 +131,21 @@ export const useLearning = () => {
     [currentWeekKey]
   );
 
+  const saveGeneratedToFile = useCallback(
+    async (topic: string, words: string, reading: string) => {
+      if (!currentWeekKey) {
+        return;
+      }
+      const encoded = encodeURIComponent(currentWeekKey);
+      await fetch(`/api/weeks/${encoded}/files`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, words, reading }),
+      });
+    },
+    [currentWeekKey]
+  );
+
   const handleAddWord = useCallback(
     async (newRow: string[]) => {
       if (!wordsTable) {
@@ -203,8 +218,12 @@ export const useLearning = () => {
       const parsed = parseTopicFromIdea(idea);
       setTopicHeader(parsed);
       try {
-        await Promise.all([generateWordsForTopic(parsed), generateReadingForTopic(parsed)]);
+        const [words, reading] = await Promise.all([
+          generateWordsForTopic(parsed),
+          generateReadingForTopic(parsed),
+        ]);
         setDerivedStage("done");
+        void saveGeneratedToFile(idea, words, reading);
       } catch (innerError) {
         setDerivedStage("idle");
         setErrorMessage(innerError instanceof Error ? innerError.message : "生成に失敗しました。");
@@ -217,7 +236,7 @@ export const useLearning = () => {
     } finally {
       setIdeaLoading(false);
     }
-  }, [topicInput, generateWordsForTopic, generateReadingForTopic, sendGenerate, resetTimer]);
+  }, [topicInput, generateWordsForTopic, generateReadingForTopic, sendGenerate, resetTimer, saveGeneratedToFile]);
 
   const handleRegenerateWords = useCallback(async () => {
     if (!topicHeader) {

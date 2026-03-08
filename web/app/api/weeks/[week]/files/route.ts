@@ -69,22 +69,41 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid week path" }, { status: 400 });
   }
 
-  let body: { words?: string };
+  let body: { topic?: string; words?: string; reading?: string };
   try {
-    body = (await request.json()) as { words?: string };
+    body = (await request.json()) as { topic?: string; words?: string; reading?: string };
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (typeof body.words !== "string") {
-    return NextResponse.json({ error: "Missing 'words' field" }, { status: 400 });
+  const writes: { field: keyof WeekFiles; fileName: string; content: string }[] = [];
+  if (typeof body.topic === "string") {
+    writes.push({ field: "topic", fileName: "topic.md", content: body.topic });
+  }
+  if (typeof body.words === "string") {
+    writes.push({ field: "words", fileName: "words.md", content: body.words });
+  }
+  if (typeof body.reading === "string") {
+    writes.push({ field: "reading", fileName: "reading.md", content: body.reading });
   }
 
-  const wordsPath = path.join(weekDir, "words.md");
+  if (writes.length === 0) {
+    return NextResponse.json({ error: "No writable fields provided" }, { status: 400 });
+  }
+
   try {
-    await fs.writeFile(wordsPath, body.words, "utf-8");
+    await fs.mkdir(weekDir, { recursive: true });
   } catch {
-    return NextResponse.json({ error: "Failed to write words.md" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to prepare week directory" }, { status: 500 });
+  }
+
+  for (const write of writes) {
+    const target = path.join(weekDir, write.fileName);
+    try {
+      await fs.writeFile(target, write.content, "utf-8");
+    } catch {
+      return NextResponse.json({ error: `Failed to write ${write.fileName}` }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
