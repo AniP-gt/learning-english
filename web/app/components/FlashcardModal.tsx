@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSpeech } from "../hooks/useSpeech";
 
 type Flashcard = {
   word: string;
@@ -20,6 +21,10 @@ export const FlashcardModal = ({ cards, onClose }: FlashcardModalProps) => {
 
   const total = cards.length;
   const current = cards[index];
+  const readingOutput = current?.word ?? "";
+  const { isSpeaking, listeningSupported, handleSpeak, handleStop } = useSpeech({
+    readingOutput,
+  });
   const checkedCount = checked.filter(Boolean).length;
 
   const goNext = useCallback(() => {
@@ -81,11 +86,16 @@ export const FlashcardModal = ({ cards, onClose }: FlashcardModalProps) => {
         case "r":
           reset();
           break;
+        case "p":
+        case "P":
+          if (isSpeaking) handleStop();
+          else handleSpeak();
+          break;
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [goNext, goPrev, onClose, reset, toggleCheck]);
+  }, [goNext, goPrev, onClose, reset, toggleCheck, handleSpeak, handleStop, isSpeaking]);
 
   if (!current) return null;
 
@@ -140,7 +150,22 @@ export const FlashcardModal = ({ cards, onClose }: FlashcardModalProps) => {
           {!flipped ? (
             <div className="space-y-3">
               <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">English</p>
-              <p className="text-3xl font-bold text-[#7aa2f7] break-words">{current.word}</p>
+              <div className="flex items-center justify-center gap-3">
+                <p className="text-3xl font-bold text-[#7aa2f7] break-words">{current.word}</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isSpeaking) handleStop();
+                    else handleSpeak();
+                  }}
+                  disabled={!listeningSupported}
+                  title={listeningSupported ? (isSpeaking ? "Stop reading (p)" : "Read aloud (p)") : "Speech not supported in this browser"}
+                  className="rounded px-2 py-1 text-sm border border-[#24283b] hover:border-[#7aa2f7]"
+                >
+                  {isSpeaking ? "⏸" : "🔊"}
+                </button>
+              </div>
               <p className="mt-6 text-[11px] text-[#5b647b]">
                 Space / Click to reveal
               </p>
