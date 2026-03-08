@@ -18,7 +18,7 @@ export default function HomePage() {
   const [activeStep, setActiveStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const learning = useLearning();
-  const { ideaLoading, handleGenerateTopic, setSettingsOpen } = learning;
+  const { setSettingsOpen } = learning;
   const handleWeekSelect = (week: string) => {
     learning.setActiveWeek(week);
     void learning.loadWeekFiles(week);
@@ -30,14 +30,10 @@ export default function HomePage() {
         event.preventDefault();
         setSettingsOpen((prev) => !prev);
       }
-      if (event.key.toLowerCase() === "g" && activeStep === 1 && !ideaLoading) {
-        event.preventDefault();
-        void handleGenerateTopic();
-      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeStep, ideaLoading, handleGenerateTopic, setSettingsOpen]);
+  }, [setSettingsOpen]);
 
   const stepPanels = [
     <IdeaStep topicInput={learning.topicInput} onTopicInputChange={learning.setTopicInput} ideaLoading={learning.ideaLoading} errorMessage={learning.errorMessage} handleGenerateTopic={learning.handleGenerateTopic} cefrLevel={learning.cefrLevel} ideaResponse={learning.ideaResponse} topicHeader={learning.topicHeader} derivedStage={learning.derivedStage} reviewsCopy={learning.reviewsCopy} key="idea" />,
