@@ -55,9 +55,15 @@ type Model struct {
 
 	readingComment string
 
-	listeningSpeed   int
-	listeningPlaying bool
-	listeningText    string
+	listeningSpeed      int
+	listeningPlaying    bool
+	listeningText       string
+	dictationInput      string
+	dictationCursor     int
+	dictationInputMode  bool
+	dictationScore      int
+	dictationScored     bool
+	dictationShowAnswer bool
 
 	speechInput        string
 	speechInputMode    bool

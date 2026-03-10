@@ -2,9 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -18,7 +21,7 @@ func playSay(text string, speed int) {
 }
 
 func (m Model) renderListeningStep(width, height int) string {
-	title := styleStepTitle.Foreground(colorPurple).Render("Step 4: Listening — say/WebTTS")
+	title := styleStepTitle.Foreground(colorPurple).Render("Step 4: Listening — Dictation")
 
 	speedBar := fmt.Sprintf("Rate: %d wpm", m.listeningSpeed)
 
@@ -39,20 +42,6 @@ func (m Model) renderListeningStep(width, height int) string {
 			Render("■  STOP")
 	}
 
-	terminalBox := lipgloss.NewStyle().
-		Background(colorBgMid).
-		Foreground(colorFg).
-		Padding(1, 2).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(colorBorderAlt).
-		Width(width - 8).
-		Render(
-			lipgloss.NewStyle().Foreground(colorBlue).Bold(true).Render("Terminal:") + "\n" +
-				lipgloss.NewStyle().Foreground(colorGreen).Render(
-					fmt.Sprintf(`$ say -r %d "%s..."`, m.listeningSpeed, truncateText(m.listeningText, 40)),
-				),
-		)
-
 	controlPanel := lipgloss.NewStyle().
 		Background(colorBgDark).
 		Padding(1, 2).
@@ -64,14 +53,85 @@ func (m Model) renderListeningStep(width, height int) string {
 			lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(playBtn),
 		))
 
-	hint := styleHint.Render("s/SPACE: 再生 | +/-: 速度変更 | g: テキスト更新")
+	var inputArea string
+	if m.dictationInputMode {
+		cursor := "_"
+		runes := []rune(m.dictationInput)
+		display := string(runes[:m.dictationCursor]) + cursor + string(runes[m.dictationCursor:])
+		inputArea = lipgloss.NewStyle().
+			Background(colorBgMid).
+			Foreground(colorFg).
+			Padding(1, 2).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(colorBlue).
+			Width(width - 8).
+			Render(
+				lipgloss.NewStyle().Foreground(colorBlue).Bold(true).Render("Dictation (入力中):") + "\n" +
+					display,
+			)
+	} else {
+		preview := m.dictationInput
+		if preview == "" {
+			preview = lipgloss.NewStyle().Foreground(colorFgDim).Render("(空白 — 'd' で入力)")
+		}
+		inputArea = lipgloss.NewStyle().
+			Background(colorBgMid).
+			Foreground(colorFg).
+			Padding(1, 2).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(colorBorderAlt).
+			Width(width - 8).
+			Render(
+				lipgloss.NewStyle().Foreground(colorBlue).Bold(true).Render("Dictation:") + "\n" +
+					preview,
+			)
+	}
 
-	inner := lipgloss.JoinVertical(lipgloss.Left,
+	var scoreArea string
+	if m.dictationScored {
+		scoreColor := colorGreen
+		if m.dictationScore < 50 {
+			scoreColor = colorRed
+		} else if m.dictationScore < 80 {
+			scoreColor = colorYellow
+		}
+		scoreArea = lipgloss.NewStyle().
+			Foreground(scoreColor).
+			Bold(true).
+			Render(fmt.Sprintf("一致率: %d%%", m.dictationScore))
+	}
+
+	var answerArea string
+	if m.dictationShowAnswer {
+		answerArea = lipgloss.NewStyle().
+			Background(colorBgMid).
+			Foreground(colorFg).
+			Padding(1, 2).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(colorPurple).
+			Width(width - 8).
+			Render(
+				lipgloss.NewStyle().Foreground(colorPurple).Bold(true).Render("本文（答え合わせ）:") + "\n" +
+					truncateText(m.listeningText, 300),
+			)
+	}
+
+	hint := styleHint.Render("s/SPACE: 再生 | +/-: 速度変更 | d: ディクテーション入力 | enter: 採点 | v: 本文表示切替")
+
+	parts := []string{
 		title,
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(controlPanel),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(terminalBox),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
-	)
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputArea),
+	}
+	if scoreArea != "" {
+		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(scoreArea))
+	}
+	if answerArea != "" {
+		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(answerArea))
+	}
+	parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint))
+
+	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	return lipgloss.NewStyle().
 		Background(colorBg).
@@ -85,5 +145,40 @@ func truncateText(text string, maxLen int) string {
 	if len(text) <= maxLen {
 		return text
 	}
-	return text[:maxLen]
+	return text[:maxLen] + "..."
+}
+
+func calcDictationScore(input, reference string) int {
+	normalize := func(s string) []string {
+		s = strings.ToLower(s)
+		var b strings.Builder
+		for _, r := range s {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) {
+				b.WriteRune(r)
+			}
+		}
+		words := strings.Fields(b.String())
+		return words
+	}
+
+	inputWords := normalize(input)
+	refWords := normalize(reference)
+
+	if len(refWords) == 0 {
+		return 0
+	}
+
+	matched := 0
+	limit := int(math.Min(float64(len(inputWords)), float64(len(refWords))))
+	for i := 0; i < limit; i++ {
+		if inputWords[i] == refWords[i] {
+			matched++
+		}
+	}
+
+	score := int(math.Round(float64(matched) / float64(len(refWords)) * 100))
+	if score > 100 {
+		score = 100
+	}
+	return score
 }

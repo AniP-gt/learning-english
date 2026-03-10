@@ -20,6 +20,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.speechInputMode {
 		return m.handleSpeechInput(msg)
 	}
+	if m.dictationInputMode {
+		return m.handleDictationInput(msg)
+	}
 	if m.replyInputMode {
 		return m.handleReplyInput(msg)
 	}
@@ -88,7 +91,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					minutes := float64(m.readingTimer) / 60.0
 					if minutes > 0 {
 						m.readingWPM = int(float64(wordCount) / minutes)
-						// set reading comment based on WPM
 						m.readingComment = commentForWPM(m.readingWPM)
 					}
 				}
@@ -163,6 +165,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "r":
 		if m.activeStep == core.StepThreeTwoOne && m.image321Path != "" {
 			m.image321Preview = renderTerminalImage(m.image321Path, m.width-12, m.height-14)
+		}
+
+	case "d":
+		if m.activeStep == core.StepListening {
+			m.dictationInputMode = true
+			m.dictationCursor = len([]rune(m.dictationInput))
+		}
+
+	case "v":
+		if m.activeStep == core.StepListening {
+			m.dictationShowAnswer = !m.dictationShowAnswer
+		}
+
+	case "enter":
+		if m.activeStep == core.StepListening {
+			m.dictationScore = calcDictationScore(m.dictationInput, m.listeningText)
+			m.dictationScored = true
 		}
 
 	case "i":
@@ -425,6 +444,38 @@ func (m Model) handleSpeechInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		ins := msg.Runes
 		m.speechInput = string(runes[:m.speechCursor]) + string(ins) + string(runes[m.speechCursor:])
 		m.speechCursor += len(ins)
+	}
+	return m, nil
+}
+
+func (m Model) handleDictationInput(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.dictationInputMode = false
+	case tea.KeyEnter:
+		m.dictationInputMode = false
+		m.dictationScore = calcDictationScore(m.dictationInput, m.listeningText)
+		m.dictationScored = true
+	case tea.KeyLeft:
+		if m.dictationCursor > 0 {
+			m.dictationCursor--
+		}
+	case tea.KeyRight:
+		runes := []rune(m.dictationInput)
+		if m.dictationCursor < len(runes) {
+			m.dictationCursor++
+		}
+	case tea.KeyBackspace:
+		runes := []rune(m.dictationInput)
+		if m.dictationCursor > 0 && len(runes) > 0 {
+			m.dictationInput = string(runes[:m.dictationCursor-1]) + string(runes[m.dictationCursor:])
+			m.dictationCursor--
+		}
+	case tea.KeyRunes, tea.KeySpace:
+		runes := []rune(m.dictationInput)
+		ins := msg.Runes
+		m.dictationInput = string(runes[:m.dictationCursor]) + string(ins) + string(runes[m.dictationCursor:])
+		m.dictationCursor += len(ins)
 	}
 	return m, nil
 }

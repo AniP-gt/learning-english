@@ -50,6 +50,9 @@ export const useLearning = () => {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
+  const [dictationText, setDictationText] = useState("");
+  const [dictationScore, setDictationScore] = useState<number | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
 
   const readingWordCount = useMemo(() => {
     if (!readingOutput) {
@@ -351,6 +354,31 @@ export const useLearning = () => {
     }
   }, [cefrLevel, chatHistory, sendGenerate]);
 
+  const handleCheckDictation = useCallback(() => {
+    const normalize = (text: string) =>
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const inputWords = normalize(dictationText);
+    const referenceWords = normalize(readingOutput);
+
+    if (referenceWords.length === 0) {
+      setDictationScore(0);
+      return;
+    }
+
+    const matched = inputWords.filter((word, i) => referenceWords[i] === word).length;
+    const score = Math.round((matched / referenceWords.length) * 100);
+    setDictationScore(Math.min(score, 100));
+  }, [dictationText, readingOutput]);
+
+  const handleToggleAnswer = useCallback(() => {
+    setShowAnswer((prev) => !prev);
+  }, []);
+
   return {
     apiKey,
     setApiKey,
@@ -403,8 +431,7 @@ export const useLearning = () => {
     handleGenerateScene,
     handleSendChat,
     handleRequestFeedback,
-    wordsTable,
-    wordsCount,
+    wordsTable,    wordsCount,
     readingWordCount,
     hasUserMessage,
     handleAddWord,
@@ -430,5 +457,11 @@ export const useLearning = () => {
     reviewsCopy,
     voice,
     setVoice,
+    dictationText,
+    setDictationText,
+    dictationScore,
+    showAnswer,
+    handleCheckDictation,
+    handleToggleAnswer,
   };
 };
