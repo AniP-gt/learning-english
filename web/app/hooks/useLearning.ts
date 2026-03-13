@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatHistoryEntry } from "../types";
 import { parseMarkdownTable, parseTopicFromIdea, reviewsCopy } from "../lib/constants";
 import { WordsTable } from "../lib/types";
+
+const MANUAL_WORDS_KEY = "learning-manual-words-md";
+const MANUAL_READING_KEY = "learning-manual-reading";
 import { useGenerate } from "./useGenerate";
 import { useWeeks } from "./useWeeks";
 import { useSpeech } from "./useSpeech";
@@ -65,10 +68,10 @@ export const useLearning = () => {
     apiKey,
     cefrLevel,
     geminiModel,
-    setWordsOutput,
-    setWordsStatus,
-    setReadingOutput,
-    setReadingStatus,
+    setWordsOutputAction: setWordsOutput,
+    setWordsStatusAction: setWordsStatus,
+    setReadingOutputAction: setReadingOutput,
+    setReadingStatusAction: setReadingStatus,
   });
 
   const {
@@ -77,18 +80,92 @@ export const useLearning = () => {
     weeksError,
     activeWeek,
     weekFilesLoading,
+    storageMetadata,
     setActiveWeek,
     loadWeekFiles,
     currentWeekKey,
   } = useWeeks({
-    setIdeaResponse,
-    setTopicHeader,
-    setWordsOutput,
-    setWordsStatus,
-    setReadingOutput,
-    setReadingStatus,
-    setDerivedStage,
+    setIdeaResponseAction: setIdeaResponse,
+    setTopicHeaderAction: setTopicHeader,
+    setWordsOutputAction: setWordsOutput,
+    setWordsStatusAction: setWordsStatus,
+    setReadingOutputAction: setReadingOutput,
+    setReadingStatusAction: setReadingStatus,
+    setDerivedStageAction: setDerivedStage,
   });
+
+  const filesystemAvailable = storageMetadata?.available ?? true;
+  const manualModeActive = storageMetadata !== null && !filesystemAvailable;
+  const [manualWordsMarkdown, setManualWordsMarkdown] = useState("");
+  const [persistedManualReading, setPersistedManualReading] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const storedWords = localStorage.getItem(MANUAL_WORDS_KEY) ?? "";
+    if (storedWords) {
+      setManualWordsMarkdown(storedWords);
+    }
+    const storedReading = localStorage.getItem(MANUAL_READING_KEY) ?? "";
+    if (storedReading) {
+      setPersistedManualReading(storedReading);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (manualWordsMarkdown) {
+      localStorage.setItem(MANUAL_WORDS_KEY, manualWordsMarkdown);
+    } else {
+      localStorage.removeItem(MANUAL_WORDS_KEY);
+    }
+  }, [manualWordsMarkdown]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !manualModeActive) {
+      return;
+    }
+    if (readingOutput) {
+      localStorage.setItem(MANUAL_READING_KEY, readingOutput);
+      setPersistedManualReading(readingOutput);
+    } else {
+      localStorage.removeItem(MANUAL_READING_KEY);
+      setPersistedManualReading("");
+    }
+  }, [manualModeActive, readingOutput]);
+
+  useEffect(() => {
+    if (!manualModeActive || !persistedManualReading) {
+      return;
+    }
+    if (readingOutput === persistedManualReading) {
+      return;
+    }
+    setReadingOutput(persistedManualReading);
+    setReadingStatus("ready");
+    setDerivedStage("done");
+  }, [manualModeActive, persistedManualReading, readingOutput, setReadingOutput, setReadingStatus, setDerivedStage]);
+
+  useEffect(() => {
+    if (!manualModeActive || !readingOutput.trim() || speechText.trim()) {
+      return;
+    }
+    setSpeechText(readingOutput);
+  }, [manualModeActive, readingOutput, speechText]);
+
+  useEffect(() => {
+    if (!manualModeActive || !manualWordsMarkdown) {
+      return;
+    }
+    if (wordsOutput.trim()) {
+      return;
+    }
+    setWordsOutput(manualWordsMarkdown);
+    setWordsStatus("ready");
+  }, [manualModeActive, manualWordsMarkdown, wordsOutput, setWordsOutput, setWordsStatus]);
 
   const {
     voices,
@@ -100,7 +177,7 @@ export const useLearning = () => {
     listeningSupported,
     handleSpeak,
     handleStop,
-  } = useSpeech({ readingOutput, initialVoice: voice, onVoiceChange: setVoice });
+  } = useSpeech({ readingOutput, initialVoice: voice, onVoiceChangeAction: setVoice });
 
   const { timerSeconds, isTiming, handleStartTimer, handleStopTimer, resetTimer, wpmResult } = useTimer({
     readingOutput,
@@ -110,6 +187,9 @@ export const useLearning = () => {
 
   const wordsTable = useMemo<WordsTable>(() => parseMarkdownTable(wordsOutput), [wordsOutput]);
   const wordsCount = wordsTable?.rows.length ?? 0;
+  const manualTablePreview = useMemo<WordsTable>(() => parseMarkdownTable(manualWordsMarkdown), [manualWordsMarkdown]);
+  const manualImportReady = Boolean(manualTablePreview?.rows.length);
+  const manualRowCount = manualTablePreview?.rows.length ?? 0;
 
   const buildWordsMarkdown = useCallback((headers: string[], rows: string[][]): string => {
     const separator = headers.map(() => "---").join(" | ");
@@ -119,9 +199,31 @@ export const useLearning = () => {
     return [headerLine, separatorLine, ...rowLines].join("\n") + "\n";
   }, []);
 
+  const handleManualMarkdownChange = useCallback((value: string) => {
+    setManualWordsMarkdown(value);
+  }, []);
+
+  const handleManualWordsImport = useCallback(() => {
+    if (!manualTablePreview) {
+      return;
+    }
+    setWordsOutput(manualWordsMarkdown);
+    setWordsStatus("ready");
+  }, [manualTablePreview, manualWordsMarkdown, setWordsOutput, setWordsStatus]);
+
+  const handleManualReadingChange = useCallback(
+    (value: string) => {
+      setReadingOutput(value);
+      setSpeechText(value);
+      setReadingStatus(value ? "ready" : "idle");
+      setDerivedStage(value ? "done" : "idle");
+    },
+    [setReadingOutput, setDerivedStage, setReadingStatus]
+  );
+
   const saveWordsToFile = useCallback(
     async (markdown: string) => {
-      if (!currentWeekKey) {
+      if (!currentWeekKey || !filesystemAvailable) {
         return;
       }
       const encoded = encodeURIComponent(currentWeekKey);
@@ -131,12 +233,12 @@ export const useLearning = () => {
         body: JSON.stringify({ words: markdown }),
       });
     },
-    [currentWeekKey]
+    [currentWeekKey, filesystemAvailable]
   );
 
   const saveGeneratedToFile = useCallback(
     async (topic: string, words: string, reading: string) => {
-      if (!currentWeekKey) {
+      if (!currentWeekKey || !filesystemAvailable) {
         return;
       }
       const encoded = encodeURIComponent(currentWeekKey);
@@ -146,7 +248,7 @@ export const useLearning = () => {
         body: JSON.stringify({ topic, words, reading }),
       });
     },
-    [currentWeekKey]
+    [currentWeekKey, filesystemAvailable]
   );
 
   const handleAddWord = useCallback(
@@ -437,6 +539,13 @@ export const useLearning = () => {
     handleAddWord,
     handleEditWord,
     handleDeleteWord,
+    manualModeActive,
+    manualWordsMarkdown,
+    manualWordsRowCount: manualRowCount,
+    manualImportReady,
+    handleManualWordsMarkdownChange: handleManualMarkdownChange,
+    handleManualWordsImport,
+    handleManualReadingChange,
     voices,
     selectedVoice,
     setSelectedVoice,
@@ -451,6 +560,7 @@ export const useLearning = () => {
     weeksError,
     activeWeek,
     weekFilesLoading,
+    storageMetadata,
     setActiveWeek,
     loadWeekFiles,
     currentWeekKey,

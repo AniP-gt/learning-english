@@ -2,34 +2,41 @@
 
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentWeekKey, parseTopicFromIdea, stripReadingHeader } from "../lib/constants";
+import { StorageMetadata } from "../lib/types";
+
+type WeeksApiResponse = {
+  weeks?: string[];
+  storage?: StorageMetadata;
+};
 
 type ReviewStage = "idle" | "loading" | "done";
 type StatusSetter = Dispatch<SetStateAction<"idle" | "loading" | "ready">>;
 
 type UseWeeksParams = {
-  setIdeaResponse: Dispatch<SetStateAction<string>>;
-  setTopicHeader: Dispatch<SetStateAction<string>>;
-  setWordsOutput: Dispatch<SetStateAction<string>>;
-  setWordsStatus: StatusSetter;
-  setReadingOutput: Dispatch<SetStateAction<string>>;
-  setReadingStatus: StatusSetter;
-  setDerivedStage: Dispatch<SetStateAction<ReviewStage>>;
+  setIdeaResponseAction: Dispatch<SetStateAction<string>>;
+  setTopicHeaderAction: Dispatch<SetStateAction<string>>;
+  setWordsOutputAction: Dispatch<SetStateAction<string>>;
+  setWordsStatusAction: StatusSetter;
+  setReadingOutputAction: Dispatch<SetStateAction<string>>;
+  setReadingStatusAction: StatusSetter;
+  setDerivedStageAction: Dispatch<SetStateAction<ReviewStage>>;
 };
 
 export const useWeeks = ({
-  setIdeaResponse,
-  setTopicHeader,
-  setWordsOutput,
-  setWordsStatus,
-  setReadingOutput,
-  setReadingStatus,
-  setDerivedStage,
+  setIdeaResponseAction,
+  setTopicHeaderAction,
+  setWordsOutputAction,
+  setWordsStatusAction,
+  setReadingOutputAction,
+  setReadingStatusAction,
+  setDerivedStageAction,
 }: UseWeeksParams) => {
   const [weeks, setWeeks] = useState<string[]>([]);
   const [weeksLoading, setWeeksLoading] = useState(true);
   const [weeksError, setWeeksError] = useState("");
   const [activeWeek, setActiveWeek] = useState<string | null>(null);
   const [weekFilesLoading, setWeekFilesLoading] = useState(false);
+  const [storageMetadata, setStorageMetadata] = useState<StorageMetadata | null>(null);
   const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
 
   const loadWeekFiles = useCallback(
@@ -38,41 +45,50 @@ export const useWeeks = ({
       try {
         const encoded = encodeURIComponent(week);
         const res = await fetch(`/api/weeks/${encoded}/files`, { cache: "no-store" });
-        if (!res.ok) {
-          return;
-        }
-        const data = (await res.json()) as {
+        let data: {
           topic: string | null;
           words: string | null;
           reading: string | null;
           feedback: string | null;
-        };
+          storage?: StorageMetadata;
+        } = { topic: null, words: null, reading: null, feedback: null };
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+        }
+        if (data.storage) {
+          setStorageMetadata(data.storage);
+        }
+        if (!res.ok) {
+          return;
+        }
         if (data.topic) {
-          setIdeaResponse(data.topic);
-          setTopicHeader(parseTopicFromIdea(data.topic));
-          setWordsStatus("idle");
+          setIdeaResponseAction(data.topic);
+          setTopicHeaderAction(parseTopicFromIdea(data.topic));
+          setWordsStatusAction("idle");
         }
         if (data.words) {
-          setWordsOutput(data.words);
-          setWordsStatus("ready");
+          setWordsOutputAction(data.words);
+          setWordsStatusAction("ready");
         }
         if (data.reading) {
-          setReadingOutput(stripReadingHeader(data.reading));
-          setReadingStatus("ready");
-          setDerivedStage("done");
+          setReadingOutputAction(stripReadingHeader(data.reading));
+          setReadingStatusAction("ready");
+          setDerivedStageAction("done");
         }
       } finally {
         setWeekFilesLoading(false);
       }
     },
     [
-      setIdeaResponse,
-      setTopicHeader,
-      setWordsOutput,
-      setWordsStatus,
-      setReadingOutput,
-      setReadingStatus,
-      setDerivedStage,
+      setIdeaResponseAction,
+      setStorageMetadata,
+      setTopicHeaderAction,
+      setWordsOutputAction,
+      setWordsStatusAction,
+      setReadingOutputAction,
+      setReadingStatusAction,
+      setDerivedStageAction,
     ]
   );
 
@@ -85,12 +101,18 @@ export const useWeeks = ({
         if (!response.ok) {
           throw new Error("Unable to fetch weeks");
         }
-        const data = (await response.json()) as { weeks?: string[] };
+        const data = (await response.json()) as WeeksApiResponse;
         if (cancelled) {
           return;
         }
         const fetchedWeeks = Array.isArray(data.weeks) ? data.weeks : [];
         setWeeks(fetchedWeeks);
+        setStorageMetadata(
+          data.storage ?? {
+            available: false,
+            source: "localStorage",
+          }
+        );
         let initialWeek: string | null = null;
         if (fetchedWeeks.includes(currentWeekKey)) {
           initialWeek = currentWeekKey;
@@ -124,6 +146,7 @@ export const useWeeks = ({
     weeksError,
     activeWeek,
     weekFilesLoading,
+    storageMetadata,
     setActiveWeek,
     loadWeekFiles,
     currentWeekKey,

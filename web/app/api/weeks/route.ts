@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs, Dirent } from "fs";
 import path from "path";
+import { describeLearningDataStorage } from "../lib/storage";
 
 type WeekEntry = {
   key: string;
@@ -37,11 +38,12 @@ const readDirSafe = async (dir: string): Promise<Dirent[]> => {
 };
 
 export async function GET() {
-  const dataDir = process.env.LEARNING_DATA_DIR;
-  if (!dataDir) {
-    return NextResponse.json({ weeks: [] });
+  const storage = await describeLearningDataStorage();
+  if (!storage.available || !storage.path) {
+    return NextResponse.json({ weeks: [], storage }, { status: 200 });
   }
 
+  const dataDir = storage.path;
   const years = await readDirSafe(dataDir);
   const collected: string[] = [];
 
@@ -67,5 +69,5 @@ export async function GET() {
   }
 
   const sorted = sortWeeksDescending(collected);
-  return NextResponse.json({ weeks: sorted }, { status: 200 });
+  return NextResponse.json({ weeks: sorted, storage }, { status: 200 });
 }

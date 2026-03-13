@@ -7,21 +7,37 @@ import { FlashcardModal } from "../FlashcardModal";
 type WordsStepProps = {
   wordsTable: WordsTable;
   wordsCount: number;
-  handleRegenerateWords: () => void;
-  handleAddWord: (newRow: string[]) => Promise<void>;
-  handleEditWord: (rowIndex: number, updatedRow: string[]) => Promise<void>;
-  handleDeleteWord: (rowIndex: number) => Promise<void>;
+  handleRegenerateWordsAction: () => void;
+  handleAddWordAction: (newRow: string[]) => Promise<void>;
+  handleEditWordAction: (rowIndex: number, updatedRow: string[]) => Promise<void>;
+  handleDeleteWordAction: (rowIndex: number) => Promise<void>;
+  manualModeActive: boolean;
+  manualMarkdown: string;
+  manualWordsRowCount: number;
+  manualImportReady: boolean;
+  onManualMarkdownChangeAction: (value: string) => void;
+  onManualWordsImportAction: () => void;
 };
 
 const emptyRow = (colCount: number): string[] => Array.from({ length: colCount }, () => "");
+const manualTableExample = `| Word | POS | Meaning | Example |
+| --- | --- | --- | --- |
+| travel | verb | 旅する | I travel between cities. |`;
+const manualTablePlaceholder = "| Word | POS | Meaning | Example |";
 
 export const WordsStep = ({
   wordsTable,
   wordsCount,
-  handleRegenerateWords,
-  handleAddWord,
-  handleEditWord,
-  handleDeleteWord,
+  handleRegenerateWordsAction,
+  handleAddWordAction,
+  handleEditWordAction,
+  handleDeleteWordAction,
+  manualModeActive,
+  manualMarkdown,
+  manualWordsRowCount,
+  manualImportReady,
+  onManualMarkdownChangeAction,
+  onManualWordsImportAction,
 }: WordsStepProps) => {
   const colCount = wordsTable?.headers.length ?? 3;
 
@@ -57,7 +73,7 @@ export const WordsStep = ({
   const commitEdit = async () => {
     if (editingRowIndex === null) return;
     setSaving(true);
-    await handleEditWord(editingRowIndex, editingCells);
+    await handleEditWordAction(editingRowIndex, editingCells);
     setSaving(false);
     setEditingRowIndex(null);
     setEditingCells([]);
@@ -78,7 +94,7 @@ export const WordsStep = ({
   const commitAdd = async () => {
     if (newRowCells.every((c) => c.trim() === "")) return;
     setSaving(true);
-    await handleAddWord(newRowCells);
+    await handleAddWordAction(newRowCells);
     setSaving(false);
     setAddingRow(false);
     setNewRowCells(emptyRow(colCount));
@@ -86,7 +102,7 @@ export const WordsStep = ({
 
   const deleteRow = async (rowIndex: number) => {
     setSaving(true);
-    await handleDeleteWord(rowIndex);
+    await handleDeleteWordAction(rowIndex);
     setSaving(false);
     if (editingRowIndex === rowIndex) cancelEdit();
   };
@@ -105,14 +121,16 @@ export const WordsStep = ({
           <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[#c0caf5]">
             Count: {wordsCount}
           </span>
-          <button
-            type="button"
-            onClick={handleRegenerateWords}
-            className="rounded-full border border-[#24283b] px-3 py-1 text-[#7aa2f7] hover:border-[#7aa2f7] transition-colors"
-            title="Regenerate words (g)"
-          >
-            g
-          </button>
+          {!manualModeActive && (
+            <button
+              type="button"
+              onClick={handleRegenerateWordsAction}
+              className="rounded-full border border-[#24283b] px-3 py-1 text-[#7aa2f7] hover:border-[#7aa2f7] transition-colors"
+              title="Regenerate words (g)"
+            >
+              g
+            </button>
+          )}
           {wordsTable && flashcards.length > 0 && (
             <button
               type="button"
@@ -136,6 +154,45 @@ export const WordsStep = ({
           )}
         </div>
       </div>
+
+      {manualModeActive && (
+        <div className="space-y-3 rounded border border-[#24283b] bg-[#141724] p-4 text-sm text-[#cdd6f4]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-[#5b647b]">Manual import</p>
+              <p className="text-[11px] text-[#7aa2f7]">Paste a markdown table and convert to the vocabulary grid.</p>
+            </div>
+            <span className="text-[11px] text-[#9ece6a]">{manualWordsRowCount} rows parsed</span>
+          </div>
+          <div className="space-y-2 rounded border border-[#24283b] bg-[#0f111a] px-3 py-3 text-[11px] text-[#a9b1d6]">
+            <p className="uppercase tracking-[0.35em] text-[#5b647b]">Manual table hints</p>
+            <p>Provide a header row, the separator row (| --- |), and at least one data row to populate the grid.</p>
+            <pre className="whitespace-pre-wrap rounded border border-[#24283b] bg-[#121422] px-3 py-2 text-[11px] font-mono text-[#7aa2f7]">
+{manualTableExample}
+            </pre>
+          </div>
+          <textarea
+            value={manualMarkdown}
+            onChange={(event) => onManualMarkdownChangeAction(event.target.value)}
+            placeholder={manualTablePlaceholder}
+            rows={6}
+            className="w-full rounded border border-[#24283b] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4] placeholder-[#3b4261] resize-y focus:border-[#7aa2f7] focus:outline-none"
+          />
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onManualWordsImportAction}
+              disabled={!manualImportReady}
+              className="rounded-full border border-[#24283b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.4em] text-[#9ece6a] disabled:opacity-40"
+            >
+              Convert to table
+            </button>
+            {manualMarkdown && !manualImportReady && (
+              <p className="text-[11px] text-[#f7768e]">Tables require headers, a separator line, and at least one row.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded border border-[#24283b] bg-[#141724] p-4">
         {wordsTable ? (

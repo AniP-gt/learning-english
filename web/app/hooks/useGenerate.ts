@@ -11,20 +11,20 @@ type UseGenerateParams = {
   apiKey: string;
   cefrLevel: CEFRLevel;
   geminiModel: GeminiModel;
-  setWordsOutput: Dispatch<SetStateAction<string>>;
-  setWordsStatus: StatusSetter;
-  setReadingOutput: Dispatch<SetStateAction<string>>;
-  setReadingStatus: StatusSetter;
+  setWordsOutputAction: Dispatch<SetStateAction<string>>;
+  setWordsStatusAction: StatusSetter;
+  setReadingOutputAction: Dispatch<SetStateAction<string>>;
+  setReadingStatusAction: StatusSetter;
 };
 
 export const useGenerate = ({
   apiKey,
   cefrLevel,
   geminiModel,
-  setWordsOutput,
-  setWordsStatus,
-  setReadingOutput,
-  setReadingStatus,
+  setWordsOutputAction: setWordsOutput,
+  setWordsStatusAction: setWordsStatus,
+  setReadingOutputAction: setReadingOutput,
+  setReadingStatusAction: setReadingStatus,
 }: UseGenerateParams) => {
   const sendGenerate = useCallback(async (payload: GenerateRequestPayload) => {
     const headers: Record<string, string> = {
@@ -51,7 +51,7 @@ export const useGenerate = ({
       throw new Error("Gemini returned empty content");
     }
     return data.content as string;
-  }, [apiKey, cefrLevel]);
+  }, [apiKey, cefrLevel, geminiModel]);
 
   const generateWordsForTopic = useCallback(
     async (topic: string) => {

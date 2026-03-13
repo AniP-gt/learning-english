@@ -6,10 +6,10 @@ import { SpeakVoice } from "../lib/types";
 type UseSpeechParams = {
   readingOutput: string;
   initialVoice?: string;
-  onVoiceChange?: (voiceURI: string) => void;
+  onVoiceChangeAction?: (voiceURI: string) => void;
 };
 
-export const useSpeech = ({ readingOutput, initialVoice, onVoiceChange }: UseSpeechParams) => {
+export const useSpeech = ({ readingOutput, initialVoice, onVoiceChangeAction }: UseSpeechParams) => {
   const [voices, setVoices] = useState<SpeakVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState("");
   const [speechRate, setSpeechRate] = useState(1);
@@ -118,14 +118,14 @@ export const useSpeech = ({ readingOutput, initialVoice, onVoiceChange }: UseSpe
 
   // When selectedVoice changes, notify external settings persistence if provided
   useEffect(() => {
-    if (selectedVoice && typeof onVoiceChange === "function") {
+    if (selectedVoice && typeof onVoiceChangeAction === "function") {
       try {
-        onVoiceChange(selectedVoice);
+        onVoiceChangeAction(selectedVoice);
       } catch (e) {
         // swallow errors from external callback to avoid breaking speech behavior
       }
     }
-  }, [selectedVoice, onVoiceChange]);
+  }, [selectedVoice, onVoiceChangeAction]);
 
   return {
     voices,

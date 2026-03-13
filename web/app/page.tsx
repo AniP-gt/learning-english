@@ -13,6 +13,13 @@ import { ListeningStep } from "./components/steps/ListeningStep";
 import { SpeechStep } from "./components/steps/SpeechStep";
 import { SceneStep } from "./components/steps/SceneStep";
 import { RoleplayStep } from "./components/steps/RoleplayStep";
+import { StorageUnavailableReason } from "./lib/types";
+
+const storageReasonCopy: Record<StorageUnavailableReason, string> = {
+  missing_config: "LEARNING_DATA_DIR is not configured",
+  missing_directory: "Configured directory does not exist",
+  not_directory: "Configured path is not a directory",
+};
 
 export default function HomePage() {
   const [activeStep, setActiveStep] = useState(1);
@@ -37,8 +44,36 @@ export default function HomePage() {
 
   const stepPanels = [
     <IdeaStep topicInput={learning.topicInput} onTopicInputChange={learning.setTopicInput} ideaLoading={learning.ideaLoading} errorMessage={learning.errorMessage} handleGenerateTopic={learning.handleGenerateTopic} cefrLevel={learning.cefrLevel} ideaResponse={learning.ideaResponse} topicHeader={learning.topicHeader} derivedStage={learning.derivedStage} reviewsCopy={learning.reviewsCopy} key="idea" />,
-    <WordsStep wordsTable={learning.wordsTable} wordsCount={learning.wordsCount} handleRegenerateWords={learning.handleRegenerateWords} handleAddWord={learning.handleAddWord} handleEditWord={learning.handleEditWord} handleDeleteWord={learning.handleDeleteWord} key="words" />,
-    <ReadingStep readingOutput={learning.readingOutput} readingWordCount={learning.readingWordCount} timerSeconds={learning.timerSeconds} wpmResult={learning.wpmResult} isTiming={learning.isTiming} handleStartTimer={learning.handleStartTimer} handleStopTimer={learning.handleStopTimer} handleRegenerateReading={learning.handleRegenerateReading} cefrLevel={learning.cefrLevel} topicHeader={learning.topicHeader} key="reading" />,
+    <WordsStep
+      wordsTable={learning.wordsTable}
+      wordsCount={learning.wordsCount}
+      handleRegenerateWordsAction={learning.handleRegenerateWords}
+      handleAddWordAction={learning.handleAddWord}
+      handleEditWordAction={learning.handleEditWord}
+      handleDeleteWordAction={learning.handleDeleteWord}
+      manualModeActive={learning.manualModeActive}
+      manualMarkdown={learning.manualWordsMarkdown}
+      manualWordsRowCount={learning.manualWordsRowCount}
+      manualImportReady={learning.manualImportReady}
+      onManualMarkdownChangeAction={learning.handleManualWordsMarkdownChange}
+      onManualWordsImportAction={learning.handleManualWordsImport}
+      key="words"
+    />,
+    <ReadingStep
+      readingOutput={learning.readingOutput}
+      readingWordCount={learning.readingWordCount}
+      timerSeconds={learning.timerSeconds}
+      wpmResult={learning.wpmResult}
+      isTiming={learning.isTiming}
+      handleStartTimerAction={learning.handleStartTimer}
+      handleStopTimerAction={learning.handleStopTimer}
+      handleRegenerateReadingAction={learning.handleRegenerateReading}
+      cefrLevel={learning.cefrLevel}
+      topicHeader={learning.topicHeader}
+      manualModeActive={learning.manualModeActive}
+      onManualReadingChangeAction={learning.handleManualReadingChange}
+      key="reading"
+    />,
     <ListeningStep readingOutput={learning.readingOutput} listeningSupported={learning.listeningSupported} voices={learning.voices} selectedVoice={learning.selectedVoice} onVoiceChange={learning.setSelectedVoice} speechRate={learning.speechRate} onSpeechRateChange={learning.setSpeechRate} handleSpeak={learning.handleSpeak} handleStop={learning.handleStop} isSpeaking={learning.isSpeaking} dictationText={learning.dictationText} onDictationChange={learning.setDictationText} dictationScore={learning.dictationScore} showAnswer={learning.showAnswer} onCheckDictation={learning.handleCheckDictation} onToggleAnswer={learning.handleToggleAnswer} key="listening" />,
     <SpeechStep speechText={learning.speechText} onSpeechTextChange={learning.setSpeechText} speechError={learning.speechError} speechLoading={learning.speechLoading} handleAnalyzeSpeech={learning.handleAnalyzeSpeech} speechFeedback={learning.speechFeedback} cefrLevel={learning.cefrLevel} key="speech" />,
     <SceneStep sceneSourceText={learning.sceneSourceText} scenePrompt={learning.scenePrompt} sceneLoading={learning.sceneLoading} sceneError={learning.sceneError} handleGenerateScene={learning.handleGenerateScene} key="scene" />,
@@ -65,10 +100,33 @@ export default function HomePage() {
           onMenuOpenAction={() => setSidebarOpen(true)}
         />
         <StepNav activeStep={activeStep} onStepChange={setActiveStep} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">{stepPanels[activeStep - 1]}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+          {learning.storageMetadata?.available === false && (
+            <div className="mb-6 rounded border border-[#24283b] bg-[#141724] px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.55)] sm:px-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-1 text-[12px]">
+                  <p className="uppercase tracking-[0.35em] text-[#5b647b]">Storage fallback</p>
+                  <p className="text-[#e0af68]">
+                    LocalStorage is active because {storageReasonCopy[learning.storageMetadata?.reason ?? "missing_config"]}.
+                  </p>
+                  <p className="text-[11px] text-[#a9b1d6]">
+                    Pending filesystem path: <span className="text-[#7aa2f7]">{learning.storageMetadata?.path ?? "LEARNING_DATA_DIR"}</span>
+                  </p>
+                  <p className="text-[11px] text-[#9ece6a]">Regeneration honors data stored in this browser until the path is restored.</p>
+                </div>
+                <span className="rounded-full border border-[#24283b] bg-[#1f2335] px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-[#9ece6a]">
+                  Manual mode
+                </span>
+              </div>
+            </div>
+          )}
+          {stepPanels[activeStep - 1]}
+        </main>
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#24283b] bg-[#1f2335] px-3 sm:px-6 py-2 text-[10px] uppercase tracking-[0.4em] text-[#7aa2f7]">
           <span>Tokyo Night · Gemini Web</span>
-          <span className="hidden sm:inline">status: synced</span>
+          <span className="hidden sm:inline">
+            status: {learning.manualModeActive ? "localstorage" : "synced"}
+          </span>
           <span className="text-[#7aa2f7]">Step {activeStep}/7</span>
         </footer>
       </div>

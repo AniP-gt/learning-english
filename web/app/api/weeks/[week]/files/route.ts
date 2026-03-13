@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
+import { describeLearningDataStorage } from "../../../lib/storage";
 
 type WeekFiles = {
   topic: string | null;
@@ -32,14 +33,17 @@ export async function GET(
 ) {
   const { week } = await params;
 
-  const dataDir = process.env.LEARNING_DATA_DIR;
-  if (!dataDir) {
-    return NextResponse.json({ error: "LEARNING_DATA_DIR not configured" }, { status: 500 });
+  const storage = await describeLearningDataStorage();
+  if (!storage.available || !storage.path) {
+    return NextResponse.json(
+      { error: "Filesystem storage unavailable", storage },
+      { status: 500 }
+    );
   }
 
-  const weekDir = resolveWeekDir(dataDir, week);
+  const weekDir = resolveWeekDir(storage.path, week);
   if (!weekDir) {
-    return NextResponse.json({ error: "Invalid week path" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid week path", storage }, { status: 400 });
   }
 
   const [topic, words, reading, feedback] = await Promise.all([
@@ -50,7 +54,7 @@ export async function GET(
   ]);
 
   const result: WeekFiles = { topic, words, reading, feedback };
-  return NextResponse.json(result, { status: 200 });
+  return NextResponse.json({ ...result, storage }, { status: 200 });
 }
 
 export async function PATCH(
@@ -59,14 +63,17 @@ export async function PATCH(
 ) {
   const { week } = await params;
 
-  const dataDir = process.env.LEARNING_DATA_DIR;
-  if (!dataDir) {
-    return NextResponse.json({ error: "LEARNING_DATA_DIR not configured" }, { status: 500 });
+  const storage = await describeLearningDataStorage();
+  if (!storage.available || !storage.path) {
+    return NextResponse.json(
+      { error: "Filesystem storage unavailable", storage },
+      { status: 500 }
+    );
   }
 
-  const weekDir = resolveWeekDir(dataDir, week);
+  const weekDir = resolveWeekDir(storage.path, week);
   if (!weekDir) {
-    return NextResponse.json({ error: "Invalid week path" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid week path", storage }, { status: 400 });
   }
 
   let body: { topic?: string; words?: string; reading?: string };
@@ -102,9 +109,12 @@ export async function PATCH(
     try {
       await fs.writeFile(target, write.content, "utf-8");
     } catch {
-      return NextResponse.json({ error: `Failed to write ${write.fileName}` }, { status: 500 });
+      return NextResponse.json(
+        { error: `Failed to write ${write.fileName}`, storage },
+        { status: 500 }
+      );
     }
   }
 
-  return NextResponse.json({ ok: true }, { status: 200 });
+  return NextResponse.json({ ok: true, storage }, { status: 200 });
 }
