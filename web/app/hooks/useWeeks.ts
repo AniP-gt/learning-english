@@ -20,6 +20,7 @@ type UseWeeksParams = {
   setReadingOutputAction: Dispatch<SetStateAction<string>>;
   setReadingStatusAction: StatusSetter;
   setDerivedStageAction: Dispatch<SetStateAction<ReviewStage>>;
+  setWeekImageUrlAction: Dispatch<SetStateAction<string>>;
 };
 
 export const useWeeks = ({
@@ -30,6 +31,7 @@ export const useWeeks = ({
   setReadingOutputAction,
   setReadingStatusAction,
   setDerivedStageAction,
+  setWeekImageUrlAction,
 }: UseWeeksParams) => {
   const [weeks, setWeeks] = useState<string[]>([]);
   const [weeksLoading, setWeeksLoading] = useState(true);
@@ -42,6 +44,7 @@ export const useWeeks = ({
   const loadWeekFiles = useCallback(
     async (week: string) => {
       setWeekFilesLoading(true);
+      setWeekImageUrlAction("");
       try {
         const encoded = encodeURIComponent(week);
         const res = await fetch(`/api/weeks/${encoded}/files`, { cache: "no-store" });
@@ -50,6 +53,7 @@ export const useWeeks = ({
           words: string | null;
           reading: string | null;
           feedback: string | null;
+          imageUrl?: string;
           storage?: StorageMetadata;
         } = { topic: null, words: null, reading: null, feedback: null };
         try {
@@ -62,6 +66,7 @@ export const useWeeks = ({
         if (!res.ok) {
           return;
         }
+        setWeekImageUrlAction(data.imageUrl ?? "");
         if (data.topic) {
           setIdeaResponseAction(data.topic);
           setTopicHeaderAction(parseTopicFromIdea(data.topic));
@@ -80,17 +85,18 @@ export const useWeeks = ({
         setWeekFilesLoading(false);
       }
     },
-    [
-      setIdeaResponseAction,
-      setStorageMetadata,
-      setTopicHeaderAction,
-      setWordsOutputAction,
-      setWordsStatusAction,
-      setReadingOutputAction,
-      setReadingStatusAction,
-      setDerivedStageAction,
-    ]
-  );
+      [
+        setIdeaResponseAction,
+        setStorageMetadata,
+        setTopicHeaderAction,
+        setWordsOutputAction,
+        setWordsStatusAction,
+        setReadingOutputAction,
+        setReadingStatusAction,
+        setDerivedStageAction,
+        setWeekImageUrlAction,
+      ]
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +129,7 @@ export const useWeeks = ({
           setActiveWeek(initialWeek);
           void loadWeekFiles(initialWeek);
         }
-      } catch (error) {
+      } catch {
         if (cancelled) {
           return;
         }

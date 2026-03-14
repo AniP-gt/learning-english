@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 import { describeLearningDataStorage } from "../../../lib/storage";
+import { resolveWeekDir } from "../../lib/dirs";
 
 type WeekFiles = {
   topic: string | null;
   words: string | null;
   reading: string | null;
   feedback: string | null;
+  imageUrl: string | null;
 };
 
 const readFileSafe = async (filePath: string): Promise<string | null> => {
@@ -18,13 +20,15 @@ const readFileSafe = async (filePath: string): Promise<string | null> => {
   }
 };
 
-const resolveWeekDir = (dataDir: string, week: string): string | null => {
-  const weekDecoded = decodeURIComponent(week);
-  const weekDir = path.resolve(dataDir, weekDecoded);
-  if (!weekDir.startsWith(path.resolve(dataDir))) {
-    return null;
+const IMAGE_FILE_NAME = "image.png";
+
+const fileExists = async (target: string): Promise<boolean> => {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
   }
-  return weekDir;
 };
 
 export async function GET(
@@ -53,7 +57,11 @@ export async function GET(
     readFileSafe(path.join(weekDir, "feedback.md")),
   ]);
 
-  const result: WeekFiles = { topic, words, reading, feedback };
+  const imageTarget = path.join(weekDir, IMAGE_FILE_NAME);
+  const hasImage = await fileExists(imageTarget);
+  const imageUrl = hasImage ? `/api/weeks/${encodeURIComponent(week)}/image` : null;
+
+  const result: WeekFiles = { topic, words, reading, feedback, imageUrl };
   return NextResponse.json({ ...result, storage }, { status: 200 });
 }
 
