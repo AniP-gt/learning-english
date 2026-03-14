@@ -8,7 +8,7 @@ const App = () => {
   const [wpm, setWpm] = useState(0);
   const [timer, setTimer] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
-  const [currentPath, setCurrentPath] = useState("2024/05/week1/reading.md");
+  const [currentPath, setCurrentPath] = useState("2024/05/week1/day1/reading.md");
 
   // Steps definition based on the video
   const steps = [
@@ -56,16 +56,26 @@ const App = () => {
         <div className="flex-1 p-2 text-sm overflow-y-auto">
           <div className="flex items-center gap-2 p-1 opacity-60"><ChevronRight size={14}/> 2024</div>
           <div className="ml-4 flex items-center gap-2 p-1 opacity-60"><ChevronRight size={14}/> 05</div>
-          <div className="ml-8">
-            <div className="flex items-center gap-2 p-1 text-[#e0af68] bg-[#24283b] rounded"><FileText size={14}/> week1</div>
-            <div className="ml-4 space-y-1 mt-1">
-              {['topic.md', 'words.md', 'reading.md', 'feedback.md'].map(file => (
-                <div key={file} className="flex items-center gap-2 p-1 hover:text-white cursor-pointer opacity-80">
-                   <Hash size={12} /> {file}
+            <div className="ml-8">
+              <div className="flex items-center gap-2 p-1 text-[#e0af68] bg-[#24283b] rounded"><FileText size={14}/> week1</div>
+              <div className="ml-4 space-y-1 mt-1">
+                {['topic.md', 'words.md'].map(file => (
+                  <div key={file} className="flex items-center gap-2 p-1 hover:text-white cursor-pointer opacity-80">
+                     <Hash size={12} /> {file}
+                  </div>
+                ))}
+              </div>
+              <div className="ml-4 mt-2 space-y-1">
+                <div className="flex items-center gap-2 p-1 text-[#9ece6a] bg-[#1f2335] rounded text-[11px] uppercase">day1</div>
+                <div className="ml-4 space-y-1 mt-1">
+                  {['reading.md', 'feedback.md', 'speech.wav', 'speech_transcript.txt'].map(file => (
+                    <div key={file} className="flex items-center gap-2 p-1 hover:text-white cursor-pointer opacity-80 text-[11px]">
+                      <Hash size={12} /> {`day1/${file}`}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
         </div>
         <div className="p-4 border-t border-[#24283b] text-[10px] opacity-40">
           Status: Synced to origin/main

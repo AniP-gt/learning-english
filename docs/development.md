@@ -350,8 +350,12 @@ artifacts/english-learning/data/
         └── week1/
             ├── topic.md       # Step 1: トピック
             ├── words.md       # Step 2: 単語リスト
-            ├── reading.md     # Step 3: 読解テキスト
-            └── feedback.md    # Step 5-7: フィードバック
+            ├── day1/
+            │   ├── reading.md       # Step 3: 読解テキスト (Day 1)
+            │   ├── feedback.md      # Step 5-7: フィードバック (Day 1)
+            │   ├── speech.wav       # Step 5: 録音オーディオ
+            │   └── speech_transcript.txt # Step 5: STT の記録
+            └── day2/ ...        # Day 2 以降
 ```
 
 ### ファイル例

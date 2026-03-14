@@ -63,23 +63,9 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.replyScrollOffset = 0
 	m.replyFeedback = ""
 	m.statusMsg = fmt.Sprintf("Switched to %s", wp.Path())
+	m = m.loadWeekMetadata(wp)
+	m = m.switchToDay(m.activeDay)
 
-	if data, err := m.storage.ReadFile(wp, "reading.md"); err == nil {
-		m.readingText = extractBodyFromMarkdown(string(data))
-		m.listeningText = m.readingText
-		m.readingLoaded = true
-	}
-	if data, err := m.storage.ReadFile(wp, "words.md"); err == nil {
-		m.words = string(data)
-		m.parsedWords = parseWordsMarkdown(m.words)
-		m.flashcardChecked = make([]bool, len(m.parsedWords))
-	}
-	if data, err := m.storage.ReadFile(wp, "topic.md"); err == nil {
-		m.ideaResponse = string(data)
-	}
-	if data, err := m.storage.ReadFile(wp, "feedback.md"); err == nil {
-		m.speechFeedback = string(data)
-	}
 	for _, ext := range []string{".png", ".jpg"} {
 		filename := "scene_321" + ext
 		if m.storage.FileExists(wp, filename) {
@@ -105,7 +91,8 @@ func (m Model) createNewWeek() (Model, tea.Cmd) {
 }
 
 func (m Model) renderSidebar(width, height int) string {
-	files := []string{"topic.md", "words.md", "reading.md", "feedback.md", "scene_321.png"}
+	weekFiles := []string{"topic.md", "words.md", "scene_321.png"}
+	dayFiles := []string{"reading.md", "feedback.md", speechTranscriptFilename, speechRecordingFilename}
 
 	headerStyle := lipgloss.NewStyle().
 		Foreground(colorBlue).
@@ -116,7 +103,7 @@ func (m Model) renderSidebar(width, height int) string {
 		headerStyle = headerStyle.Foreground(colorYellow)
 	}
 
-	header := headerStyle.Render("📂 WEEKS")
+	header := headerStyle.Render(fmt.Sprintf("📂 WEEKS (Day %d)", m.activeDay))
 
 	var lines []string
 	currentPath := storage.CurrentWeekPath()
@@ -167,7 +154,7 @@ func (m Model) renderSidebar(width, height int) string {
 		lines = append(lines, row)
 
 		if isActive || (isSelected && m.sidebarFocused) {
-			for _, f := range files {
+			for _, f := range weekFiles {
 				exists := m.storage.FileExists(w, f)
 				icon := "◦"
 				fStyle := lipgloss.NewStyle().Foreground(colorFgDim)
@@ -176,6 +163,20 @@ func (m Model) renderSidebar(width, height int) string {
 					fStyle = lipgloss.NewStyle().Foreground(colorGreen)
 				}
 				lines = append(lines, fStyle.Render(fmt.Sprintf("   %s %s", icon, f)))
+			}
+			if isActive {
+				daySelection := m.dayPathForWeek(w)
+				for _, f := range dayFiles {
+					exists := m.storage.DayFileExists(daySelection, f)
+					icon := "◦"
+					fStyle := lipgloss.NewStyle().Foreground(colorFgDim)
+					if exists {
+						icon = "●"
+						fStyle = lipgloss.NewStyle().Foreground(colorGreen)
+					}
+					label := fmt.Sprintf("day%d/%s", daySelection.Day, f)
+					lines = append(lines, fStyle.Render(fmt.Sprintf("   %s %s", icon, label)))
+				}
 			}
 		}
 	}
@@ -199,7 +200,7 @@ func (m Model) renderSidebar(width, height int) string {
 		hint = lipgloss.NewStyle().
 			Foreground(colorFgDim).
 			Padding(0, 1).
-			Render("tab: focus weeks")
+			Render("tab: focus weeks | [, ]:change day")
 	}
 
 	tree := lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -258,22 +259,34 @@ func (m Model) ensureCurrentWeekAndFiles() Model {
 
 	topicT := fmt.Sprintf("# Topic — %04d/%02d/week%d\n\n## Japanese Input\n\n\n## Keywords\n\n\n## Summary\n", year, month, week)
 	wordsT := fmt.Sprintf("# Words — %04d/%02d/week%d\n\n| Word | Translation | Example |\n|------|-------------|---------|\n", year, month, week)
-	readingT := fmt.Sprintf("# Reading — %04d/%02d/week%d\n\nCEFR: %s | Words: 0\n\n", year, month, week, m.config.CEFRLevel)
-	feedbackT := fmt.Sprintf("# Feedback — %04d/%02d/week%d\n\n", year, month, week)
-
 	if !m.storage.FileExists(wp, "topic.md") {
-		_ = m.storage.WriteFile(wp, "topic.md", []byte(topicT))
+		_ = m.storage.WriteWeekFile(wp, "topic.md", []byte(topicT))
 	}
 	if !m.storage.FileExists(wp, "words.md") {
-		_ = m.storage.WriteFile(wp, "words.md", []byte(wordsT))
+		_ = m.storage.WriteWeekFile(wp, "words.md", []byte(wordsT))
 	}
-	if !m.storage.FileExists(wp, "reading.md") {
-		_ = m.storage.WriteFile(wp, "reading.md", []byte(readingT))
-	}
-	if !m.storage.FileExists(wp, "feedback.md") {
-		_ = m.storage.WriteFile(wp, "feedback.md", []byte(feedbackT))
+	for day := 1; day <= maxDays; day++ {
+		m = m.ensureDayFiles(wp, day)
 	}
 
+	return m
+}
+
+func (m Model) ensureDayFiles(wp core.WeekPath, day int) Model {
+	dp := core.DayPath{Week: wp, Day: day}
+	level := m.config.CEFRLevel
+	if level == "" {
+		level = core.DefaultCEFRLevel
+	}
+	readingT := fmt.Sprintf("# Reading — %s/day%d\n\nCEFR: %s | Words: 0\n\n%s\n",
+		wp.Path(), day, level, defaultReadingParagraph)
+	feedbackT := fmt.Sprintf("# Feedback — %s/day%d\n\n", wp.Path(), day)
+	if !m.storage.DayFileExists(dp, "reading.md") {
+		_ = m.storage.WriteDayFile(dp, "reading.md", []byte(readingT))
+	}
+	if !m.storage.DayFileExists(dp, "feedback.md") {
+		_ = m.storage.WriteDayFile(dp, "feedback.md", []byte(feedbackT))
+	}
 	return m
 }
 

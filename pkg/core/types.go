@@ -45,6 +45,19 @@ func (w WeekPath) Path() string {
 	return fmt.Sprintf("%04d/%02d/week%d", w.Year, w.Month, w.Week)
 }
 
+type DayPath struct {
+	Week WeekPath
+	Day  int
+}
+
+func (d DayPath) Path() string {
+	day := d.Day
+	if day < 1 {
+		day = 1
+	}
+	return fmt.Sprintf("%s/day%d", d.Week.Path(), day)
+}
+
 // LearningData represents the data for a learning session
 type LearningData struct {
 	Path     WeekPath

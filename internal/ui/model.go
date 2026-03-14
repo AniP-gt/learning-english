@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ type Model struct {
 	gemini      *geminiPkg.Client
 	weekPath    core.WeekPath
 	activeStep  core.Step
+	activeDay   int
 	width       int
 	height      int
 	sidebarOpen bool
@@ -106,6 +108,10 @@ type Model struct {
 	loading   bool
 }
 
+const maxDays = 7
+
+const defaultReadingParagraph = "I love coffee. Every morning, I grind fresh beans and carefully measure the grounds. The rich aroma fills my kitchen and wakes me up better than any alarm clock. I prefer a light roast because I enjoy the bright acidity and subtle floral notes. The ritual of brewing has become an important part of my daily routine, giving me time to think and prepare for the day ahead."
+
 func NewModel(config *core.Config) Model {
 	weekPath := storage.CurrentWeekPath()
 	s := storage.NewFileStorage(config.DataDir)
@@ -143,6 +149,7 @@ func NewModel(config *core.Config) Model {
 		weeks:             weeks,
 		sidebarCursor:     currentIdx,
 		activeStep:        core.StepIdea,
+		activeDay:         1,
 		sidebarOpen:       true,
 		listeningSpeed:    180,
 		replyMessages:     []replyMessage{},
@@ -151,36 +158,8 @@ func NewModel(config *core.Config) Model {
 	}
 
 	m.readingComment = ""
-
-	m.readingText = "I love coffee. Every morning, I grind fresh beans and carefully measure the grounds. The rich aroma fills my kitchen and wakes me up better than any alarm clock. I prefer a light roast because I enjoy the bright acidity and subtle floral notes. The ritual of brewing has become an important part of my daily routine, giving me time to think and prepare for the day ahead."
-	m.listeningText = m.readingText
-
-	if data, err := s.ReadFile(weekPath, "reading.md"); err == nil {
-		m.readingText = extractBodyFromMarkdown(string(data))
-		m.listeningText = m.readingText
-		m.readingLoaded = true
-	}
-	if data, err := s.ReadFile(weekPath, "words.md"); err == nil {
-		m.words = string(data)
-		m.parsedWords = parseWordsMarkdown(m.words)
-		m.flashcardChecked = make([]bool, len(m.parsedWords))
-	}
-	if data, err := s.ReadFile(weekPath, "topic.md"); err == nil {
-		m.ideaResponse = string(data)
-	}
-	if data, err := s.ReadFile(weekPath, "feedback.md"); err == nil {
-		m.speechFeedback = string(data)
-	}
-	if data, err := s.ReadFile(weekPath, speechTranscriptFilename); err == nil {
-		m.speechTranscript = strings.TrimSpace(string(data))
-		if m.speechInput == "" {
-			m.speechInput = m.speechTranscript
-			m.speechCursor = len([]rune(m.speechInput))
-		}
-	}
-	if s.FileExists(weekPath, speechRecordingFilename) {
-		m.speechAudioPath = buildSpeechRecordingPath(s.GetWeekDir(weekPath))
-	}
+	m = m.loadWeekMetadata(weekPath)
+	m = m.switchToDay(m.activeDay)
 	audioTools := detectSpeechAudioTools()
 	m.speechCanRecord = audioTools.CanRecord()
 	m.speechCanPlay = audioTools.CanPlay()
@@ -226,4 +205,94 @@ func tickCmd() tea.Cmd {
 
 func (m Model) Init() tea.Cmd {
 	return nil
+}
+
+func clampDay(day int) int {
+	if day < 1 {
+		return 1
+	}
+	if day > maxDays {
+		return maxDays
+	}
+	return day
+}
+
+func (m Model) loadWeekMetadata(wp core.WeekPath) Model {
+	m.parsedWords = nil
+	m.flashcardChecked = nil
+	m.words = ""
+	if data, err := m.storage.ReadWeekFile(wp, "words.md"); err == nil {
+		m.words = string(data)
+		m.parsedWords = parseWordsMarkdown(m.words)
+		m.flashcardChecked = make([]bool, len(m.parsedWords))
+	}
+	if data, err := m.storage.ReadWeekFile(wp, "topic.md"); err == nil {
+		m.ideaResponse = string(data)
+	}
+	return m
+}
+
+func (m Model) switchToDay(day int) Model {
+	day = clampDay(day)
+	m.activeDay = day
+	return m.loadDayArtifacts(m.weekPath, day)
+}
+
+func (m Model) loadDayArtifacts(wp core.WeekPath, day int) Model {
+	m.readingText = defaultReadingParagraph
+	m.listeningText = m.readingText
+	m.readingLoaded = false
+	m.readingTimer = 0
+	m.readingWPM = 0
+	m.readingTiming = false
+	m.readingScrollOffset = 0
+	m.readingComment = ""
+	m.listeningPlaying = false
+	m.dictationInput = ""
+	m.dictationCursor = 0
+	m.dictationScore = 0
+	m.dictationScored = false
+	m.dictationShowAnswer = false
+	m.dictationInputMode = false
+	m.speechInputMode = false
+	m.speechInput = ""
+	m.speechCursor = 0
+	m.speechFeedback = ""
+	m.speechTranscript = ""
+	m.speechScrollOffset = 0
+	m.speechRecording = false
+	m.speechLoading = false
+	m.speechAudioPath = ""
+	daySelection := dayPath(wp, day)
+	if data, err := m.storage.ReadDayFile(daySelection, "reading.md"); err == nil {
+		m.readingText = extractBodyFromMarkdown(string(data))
+		m.listeningText = m.readingText
+		m.readingLoaded = true
+	}
+	if data, err := m.storage.ReadDayFile(daySelection, "feedback.md"); err == nil {
+		m.speechFeedback = string(data)
+	}
+	if data, err := m.storage.ReadDayFile(daySelection, speechTranscriptFilename); err == nil {
+		m.speechTranscript = strings.TrimSpace(string(data))
+		if m.speechInput == "" {
+			m.speechInput = m.speechTranscript
+			m.speechCursor = len([]rune(m.speechInput))
+		}
+	}
+	if m.storage.DayFileExists(daySelection, speechRecordingFilename) {
+		m.speechAudioPath = filepath.Join(m.storage.GetDayDir(daySelection), speechRecordingFilename)
+	}
+	return m
+}
+
+func dayPath(wp core.WeekPath, day int) core.DayPath {
+	return core.DayPath{Week: wp, Day: clampDay(day)}
+}
+
+func (m Model) currentDayPath() core.DayPath {
+	return dayPath(m.weekPath, m.activeDay)
+}
+
+func (m Model) dayPathForWeek(wp core.WeekPath) core.DayPath {
+	return dayPath(wp, m.activeDay)
 }

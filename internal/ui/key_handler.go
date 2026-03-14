@@ -68,9 +68,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.activeStep = core.StepThreeTwoOne
 	case "7":
 		m.activeStep = core.StepRoleplay
+		m.replyScrollOffset = 0
 
 	case "tab":
-		m.replyScrollOffset = 0
 		if m.sidebarOpen {
 			m.sidebarFocused = !m.sidebarFocused
 		} else {
@@ -82,6 +82,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.sidebarOpen = !m.sidebarOpen
 		if !m.sidebarOpen {
 			m.sidebarFocused = false
+		}
+
+	case "[":
+		if m.activeDay > 1 {
+			m = m.switchToDay(m.activeDay - 1)
+			m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+		}
+	case "]":
+		if m.activeDay < maxDays {
+			m = m.switchToDay(m.activeDay + 1)
+			m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
 		}
 
 	case " ":
@@ -134,33 +145,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "j":
 		switch m.activeStep {
+		case core.StepReading:
+			m.readingScrollOffset++
 		case core.StepSpeech:
 			m.speechScrollOffset++
+			// clamp will be applied in render path based on visible height
 		case core.StepRoleplay:
 			m.replyScrollOffset++
 		}
 
 	case "k":
 		switch m.activeStep {
+		case core.StepReading:
+			if m.readingScrollOffset > 0 {
+				m.readingScrollOffset--
+			}
 		case core.StepSpeech:
 			if m.speechScrollOffset > 0 {
 				m.speechScrollOffset--
-		case core.StepReading:
-			m.readingScrollOffset++
 			}
 		case core.StepRoleplay:
-			// clamp will be applied in render path based on visible height
 			if m.replyScrollOffset > 0 {
 				m.replyScrollOffset--
 			}
 		}
 
-		case core.StepRoleplay:
-		case core.StepReading:
-			if m.readingScrollOffset > 0 {
-				m.readingScrollOffset--
-			}
-			m.replyScrollOffset++
 	case "+", "=":
 		if m.activeStep == core.StepListening && m.listeningSpeed < 400 {
 			m.listeningSpeed += 20
@@ -170,10 +179,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.activeStep == core.StepListening && m.listeningSpeed > 80 {
 			m.listeningSpeed -= 20
 		}
-		case core.StepRoleplay:
-			if m.replyScrollOffset > 0 {
-				m.replyScrollOffset--
-			}
 
 	case "g":
 		return m.handleGeminiAction()
