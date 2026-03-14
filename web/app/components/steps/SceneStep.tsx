@@ -8,7 +8,11 @@ type SceneStepProps = {
   sceneLoading: boolean;
   sceneError: string;
   handleGenerateSceneAction: () => void;
-  weekImageUrl: string;
+  sceneImageUrl: string;
+  manualModeActive: boolean;
+  manualSceneImage: string;
+  onManualSceneImageUploadAction: (file: File | null) => void;
+  onManualSceneImageDeleteAction: () => void;
   readingFallbackText: string;
 };
 
@@ -18,11 +22,21 @@ export const SceneStep = ({
   sceneLoading,
   sceneError,
   handleGenerateSceneAction,
-  weekImageUrl,
+  sceneImageUrl,
+  manualModeActive,
+  manualSceneImage,
+  onManualSceneImageUploadAction,
+  onManualSceneImageDeleteAction,
   readingFallbackText,
 }: SceneStepProps) => {
   const trimmedReadingFallback = readingFallbackText.trim();
   const hasReadingFallback = Boolean(trimmedReadingFallback);
+  const manualImageActive = manualModeActive && Boolean(manualSceneImage);
+  const anchorLabel = sceneImageUrl
+    ? manualImageActive
+      ? "Manual upload"
+      : "Week image"
+    : "Reading fallback";
 
   return (
     <section className="space-y-6 step-section">
@@ -36,18 +50,26 @@ export const SceneStep = ({
       <div className="rounded border border-[#24283b] bg-[#141724] p-4 text-sm text-[#cdd6f4] shadow-[0_12px_45px_rgba(5,6,16,0.45)]">
         <div className="flex items-center justify-between">
           <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Visual anchor</p>
-          <span className="text-[11px] text-[#9ece6a]">{weekImageUrl ? "Week image" : "Reading fallback"}</span>
+          <span className="text-[11px] text-[#9ece6a]">{anchorLabel}</span>
         </div>
-        {weekImageUrl ? (
+        {sceneImageUrl ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-[#1f2335] bg-[#0f111a] shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
-            <Image
-              src={weekImageUrl}
-              alt="Week illustration"
-              width={1200}
-              height={780}
-              className="h-[260px] w-full object-cover"
-              unoptimized
-            />
+            {manualImageActive ? (
+              <img
+                src={sceneImageUrl}
+                alt="Manual scene upload"
+                className="h-[260px] w-full object-cover"
+              />
+            ) : (
+              <Image
+                src={sceneImageUrl}
+                alt="Week illustration"
+                width={1200}
+                height={780}
+                className="h-[260px] w-full object-cover"
+                unoptimized
+              />
+            )}
           </div>
         ) : hasReadingFallback ? (
           <pre className="mt-3 max-h-[280px] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
@@ -59,6 +81,46 @@ export const SceneStep = ({
           </p>
         )}
       </div>
+      {manualModeActive && (
+        <div className="space-y-3 rounded border border-[#24283b] bg-[#141724] p-4 text-[12px] text-[#cdd6f4] shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Manual image</p>
+            <span className="text-[11px] text-[#9ece6a]">LocalStorage</span>
+          </div>
+          <p className="text-[11px] text-[#7aa2f7]">
+            Uploads are stored only in this browser while the filesystem path is unavailable.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="cursor-pointer rounded-full border border-[#24283b] bg-[#1f2335] px-4 py-2 text-[11px] uppercase tracking-[0.4em] text-[#7aa2f7] transition hover:border-[#7aa2f7]">
+              Upload image
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  onManualSceneImageUploadAction(file);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={onManualSceneImageDeleteAction}
+              disabled={!manualSceneImage}
+              className="rounded-full border border-[#24283b] px-4 py-2 text-[11px] uppercase tracking-[0.4em] text-[#f7768e] transition hover:border-[#f7768e] disabled:opacity-40"
+            >
+              Delete image
+            </button>
+          </div>
+          <p className={`text-[11px] ${manualSceneImage ? "text-[#9ece6a]" : "text-[#5b647b]"}`}>
+            {manualSceneImage
+              ? "Preview is shown above. Re-upload to replace it."
+              : "Upload an image here to preserve a visual anchor locally."
+            }
+          </p>
+        </div>
+      )}
       <div className="rounded border border-[#24283b] bg-[#16161e] p-4 text-[13px] text-[#cdd6f4]">
         <p className="text-[10px] uppercase tracking-[0.4em] text-[#5b647b]">Source text</p>
         <p className="mt-2 leading-relaxed text-[#cdd6f4] max-h-[480px] overflow-y-auto">

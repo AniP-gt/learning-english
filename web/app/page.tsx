@@ -108,7 +108,11 @@ export default function HomePage() {
       sceneLoading={learning.sceneLoading}
       sceneError={learning.sceneError}
       handleGenerateSceneAction={learning.handleGenerateScene}
-      weekImageUrl={learning.weekImageUrl}
+      sceneImageUrl={learning.sceneImageUrl}
+      manualModeActive={learning.manualModeActive}
+      manualSceneImage={learning.manualSceneImage}
+      onManualSceneImageUploadAction={learning.handleManualSceneImageUpload}
+      onManualSceneImageDeleteAction={learning.handleManualSceneImageDelete}
       readingFallbackText={learning.readingOutput}
       key="scene"
     />,

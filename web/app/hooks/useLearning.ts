@@ -7,6 +7,7 @@ import { WordsTable } from "../lib/types";
 
 const MANUAL_WORDS_KEY = "learning-manual-words-md";
 const MANUAL_READING_KEY = "learning-manual-reading";
+const MANUAL_SCENE_IMAGE_KEY = "learning-manual-scene-image";
 import { useGenerate } from "./useGenerate";
 import { useWeeks } from "./useWeeks";
 import { useSpeech } from "./useSpeech";
@@ -101,6 +102,7 @@ export const useLearning = () => {
   const manualModeActive = storageMetadata !== null && !filesystemAvailable;
   const [manualWordsMarkdown, setManualWordsMarkdown] = useState("");
   const [persistedManualReading, setPersistedManualReading] = useState("");
+  const [manualSceneImage, setManualSceneImage] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -113,6 +115,10 @@ export const useLearning = () => {
     const storedReading = localStorage.getItem(MANUAL_READING_KEY) ?? "";
     if (storedReading) {
       setPersistedManualReading(storedReading);
+    }
+    const storedSceneImage = localStorage.getItem(MANUAL_SCENE_IMAGE_KEY) ?? "";
+    if (storedSceneImage) {
+      setManualSceneImage(storedSceneImage);
     }
   }, []);
 
@@ -139,6 +145,17 @@ export const useLearning = () => {
       setPersistedManualReading("");
     }
   }, [manualModeActive, readingOutput]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !manualModeActive) {
+      return;
+    }
+    if (manualSceneImage) {
+      localStorage.setItem(MANUAL_SCENE_IMAGE_KEY, manualSceneImage);
+    } else {
+      localStorage.removeItem(MANUAL_SCENE_IMAGE_KEY);
+    }
+  }, [manualModeActive, manualSceneImage]);
 
   useEffect(() => {
     if (!manualModeActive || !persistedManualReading) {
@@ -244,6 +261,24 @@ export const useLearning = () => {
     [setReadingOutput, setDerivedStage, setReadingStatus]
   );
 
+  const handleManualSceneImageUpload = useCallback((file: File | null) => {
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setManualSceneImage(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleManualSceneImageDelete = useCallback(() => {
+    setManualSceneImage("");
+  }, []);
+
   const saveWordsToFile = useCallback(
     async (markdown: string) => {
       if (!currentWeekKey || !filesystemAvailable) {
@@ -319,6 +354,7 @@ export const useLearning = () => {
     }
     return readingOutput.trim();
   }, [readingOutput, speechText]);
+  const sceneImageUrl = manualModeActive && manualSceneImage ? manualSceneImage : weekImageUrl;
   const hasUserMessage = useMemo(
     () => chatHistory.some((message) => message.role === "user"),
     [chatHistory]
@@ -660,6 +696,9 @@ export const useLearning = () => {
     handleManualWordsMarkdownChange: handleManualMarkdownChange,
     handleManualWordsImport,
     handleManualReadingChange,
+    manualSceneImage,
+    handleManualSceneImageUpload,
+    handleManualSceneImageDelete,
     voices,
     selectedVoice,
     setSelectedVoice,
@@ -688,5 +727,6 @@ export const useLearning = () => {
     handleCheckDictation,
     handleToggleAnswer,
     weekImageUrl,
+    sceneImageUrl,
   };
 };
