@@ -21,11 +21,19 @@ func (m Model) renderSpeechStep(width, height int) string {
 		feedbackHeight = 4
 	}
 
-	countdownLabel := fmt.Sprintf("⏱ %ds", m.speechSecondsLeft)
+	// format seconds as MM:SS for clearer readability
+	mins := m.speechSecondsLeft / 60
+	secs := m.speechSecondsLeft % 60
+	countdownLabel := fmt.Sprintf("⏱ %02d:%02d", mins, secs)
 	countdownColor := colorBlue
 	if m.speechRecording {
-		countdownLabel = fmt.Sprintf("🎙 %ds remaining", m.speechSecondsLeft)
-		countdownColor = colorRed
+		countdownLabel = fmt.Sprintf("🎙 %02d:%02d remaining", mins, secs)
+		// when nearing the end, draw attention with yellow; otherwise red while recording
+		if m.speechSecondsLeft <= 10 {
+			countdownColor = colorYellow
+		} else {
+			countdownColor = colorRed
+		}
 	}
 
 	recordingState := "Ready"
