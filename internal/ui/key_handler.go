@@ -253,6 +253,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case "ctrl+s":
 		return m, m.saveToGit()
+
+	case "esc":
+		// Allow canceling an ongoing speech recording with Esc when on StepSpeech.
+		if m.activeStep == core.StepSpeech && m.speechRecording {
+			// best-effort stop the underlying recorder and update UI state
+			_ = StopOngoingRecording()
+			m.speechRecording = false
+			m.speechSecondsLeft = 0
+			m.statusMsg = "Recording canceled."
+			return m, nil
+		}
 	}
 
 	return m, nil

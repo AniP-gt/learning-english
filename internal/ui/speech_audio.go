@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,6 +46,12 @@ func detectSpeechAudioTools() speechAudioTools {
 
 	return tools
 }
+
+var (
+	recordingMu     sync.Mutex
+	recordingCancel context.CancelFunc
+	recordingCmd    *exec.Cmd
+)
 
 func (t speechAudioTools) CanRecord() bool {
 	return t.recorderPath != ""
@@ -106,12 +113,27 @@ func recordSpeechAudio(outputPath string, duration time.Duration) error {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), duration+5*time.Second)
-	defer cancel()
 
+	// store cancel so callers (UI) can cancel early
+	recordingMu.Lock()
+	recordingCancel = cancel
 	cmd := exec.CommandContext(ctx, tools.recorderPath, args...)
+	recordingCmd = cmd
+	recordingMu.Unlock()
+
 	output, err := cmd.CombinedOutput()
+
+	// clear stored handles
+	recordingMu.Lock()
+	recordingCancel = nil
+	recordingCmd = nil
+	recordingMu.Unlock()
+
 	if ctx.Err() == context.DeadlineExceeded {
 		return fmt.Errorf("recording timed out after %ds", int(duration/time.Second))
+	}
+	if ctx.Err() == context.Canceled {
+		return fmt.Errorf("recording canceled")
 	}
 	if err != nil {
 		trimmed := strings.TrimSpace(string(output))
@@ -144,6 +166,30 @@ func playSpeechAudio(path string) error {
 			return fmt.Errorf("playback failed: %w (%s)", err, trimmed)
 		}
 		return fmt.Errorf("playback failed: %w", err)
+	}
+	return nil
+}
+
+// StopOngoingRecording requests cancellation of a running recording, if any.
+// It is safe to call multiple times.
+func StopOngoingRecording() error {
+	recordingMu.Lock()
+	cancel := recordingCancel
+	cmd := recordingCmd
+	recordingMu.Unlock()
+
+	if cancel == nil && cmd == nil {
+		return fmt.Errorf("no recording in progress")
+	}
+
+	if cancel != nil {
+		cancel()
+	}
+
+	// give the process a short moment to exit; try killing if still running
+	if cmd != nil && cmd.Process != nil {
+		// best-effort
+		_ = cmd.Process.Kill()
 	}
 	return nil
 }
