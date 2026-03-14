@@ -68,8 +68,15 @@ type Model struct {
 	speechInput        string
 	speechInputMode    bool
 	speechCursor       int
+	speechTranscript   string
 	speechFeedback     string
 	speechLoading      bool
+	speechRecording    bool
+	speechSecondsLeft  int
+	speechAudioPath    string
+	speechCanRecord    bool
+	speechCanPlay      bool
+	speechAudioHint    string
 	speechScrollOffset int
 
 	scene321        string
@@ -128,17 +135,18 @@ func NewModel(config *core.Config) Model {
 	}
 
 	m := Model{
-		config:         config,
-		storage:        s,
-		gemini:         g,
-		weekPath:       weekPath,
-		weeks:          weeks,
-		sidebarCursor:  currentIdx,
-		activeStep:     core.StepIdea,
-		sidebarOpen:    true,
-		listeningSpeed: 180,
-		replyMessages:  []replyMessage{},
-		settingsInputs: newSettingsInputs(config),
+		config:            config,
+		storage:           s,
+		gemini:            g,
+		weekPath:          weekPath,
+		weeks:             weeks,
+		sidebarCursor:     currentIdx,
+		activeStep:        core.StepIdea,
+		sidebarOpen:       true,
+		listeningSpeed:    180,
+		replyMessages:     []replyMessage{},
+		settingsInputs:    newSettingsInputs(config),
+		speechSecondsLeft: speechRecordingSeconds,
 	}
 
 	m.readingComment = ""
@@ -162,6 +170,20 @@ func NewModel(config *core.Config) Model {
 	if data, err := s.ReadFile(weekPath, "feedback.md"); err == nil {
 		m.speechFeedback = string(data)
 	}
+	if data, err := s.ReadFile(weekPath, speechTranscriptFilename); err == nil {
+		m.speechTranscript = strings.TrimSpace(string(data))
+		if m.speechInput == "" {
+			m.speechInput = m.speechTranscript
+			m.speechCursor = len([]rune(m.speechInput))
+		}
+	}
+	if s.FileExists(weekPath, speechRecordingFilename) {
+		m.speechAudioPath = buildSpeechRecordingPath(s.GetWeekDir(weekPath))
+	}
+	audioTools := detectSpeechAudioTools()
+	m.speechCanRecord = audioTools.CanRecord()
+	m.speechCanPlay = audioTools.CanPlay()
+	m.speechAudioHint = audioTools.Hint()
 	for _, ext := range []string{".png", ".jpg"} {
 		filename := "scene_321" + ext
 		if s.FileExists(weekPath, filename) {

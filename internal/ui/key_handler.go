@@ -163,8 +163,44 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m.handleGeminiAction()
 
 	case "r":
+		if m.activeStep == core.StepSpeech {
+			if m.speechRecording {
+				m.statusMsg = "Recording already in progress..."
+				return m, nil
+			}
+			if !m.speechCanRecord {
+				m.statusMsg = m.speechAudioHint
+				return m, nil
+			}
+			m.speechRecording = true
+			m.speechLoading = false
+			m.speechSecondsLeft = speechRecordingSeconds
+			m.speechTranscript = ""
+			m.speechFeedback = ""
+			m.speechScrollOffset = 0
+			m.statusMsg = "Recording speech for 60 seconds..."
+			return m, tea.Batch(m.recordSpeechCmd(), tickCmd())
+		}
 		if m.activeStep == core.StepThreeTwoOne && m.image321Path != "" {
 			m.image321Preview = renderTerminalImage(m.image321Path, m.width-12, m.height-14)
+		}
+
+	case "p":
+		if m.activeStep == core.StepSpeech {
+			if m.speechRecording {
+				m.statusMsg = "Wait for recording to finish before playback."
+				return m, nil
+			}
+			if m.speechAudioPath == "" {
+				m.statusMsg = "No recorded audio available yet."
+				return m, nil
+			}
+			if !m.speechCanPlay {
+				m.statusMsg = m.speechAudioHint
+				return m, nil
+			}
+			m.statusMsg = "Playing recorded speech..."
+			return m, m.playSpeechRecordingCmd()
 		}
 
 	case "d":
@@ -278,13 +314,16 @@ func (m Model) handleGeminiAction() (Model, tea.Cmd) {
 			return geminiResponseMsg{content: content, err: err}
 		}
 	case core.StepSpeech:
-		if m.speechInput == "" {
-			m.statusMsg = "Press 'i' to enter your speech first"
+		text := strings.TrimSpace(m.speechInput)
+		if text == "" {
+			text = strings.TrimSpace(m.speechTranscript)
+		}
+		if text == "" {
+			m.statusMsg = "Press 'r' to record or 'i' to enter speech first"
 			return m, nil
 		}
 		m.speechLoading = true
 		m.statusMsg = "Analyzing speech..."
-		text := m.speechInput
 		g := m.gemini
 		return m, func() tea.Msg {
 			content, err := g.AnalyzeSpeech(text)
@@ -411,6 +450,7 @@ func (m Model) handleSpeechInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.speechInput != "" && m.gemini.HasAPIKey() {
 			m.speechInputMode = false
 			m.speechLoading = true
+			m.speechTranscript = m.speechInput
 			m.speechFeedback = ""
 			m.speechScrollOffset = 0
 			m.statusMsg = "Analyzing speech..."

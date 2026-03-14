@@ -76,6 +76,24 @@ type part struct {
 	Text string `json:"text"`
 }
 
+type inlineDataPart struct {
+	MimeType string `json:"mimeType"`
+	Data     string `json:"data"`
+}
+
+type multimodalPart struct {
+	Text       string          `json:"text,omitempty"`
+	InlineData *inlineDataPart `json:"inlineData,omitempty"`
+}
+
+type multimodalContent struct {
+	Parts []multimodalPart `json:"parts"`
+}
+
+type multimodalGenerateRequest struct {
+	Contents []multimodalContent `json:"contents"`
+}
+
 type generateResponse struct {
 	Candidates []struct {
 		Content struct {
@@ -380,7 +398,91 @@ func (c *Client) FeedbackForReply(userMessage string) (string, error) {
 }
 
 func (c *Client) TranscribeSpeech(audioData []byte) (string, error) {
-	return "", fmt.Errorf("audio transcription not yet implemented")
+	if c.apiKey == "" {
+		return "", fmt.Errorf("GEMINI_API_KEY not set")
+	}
+	if len(audioData) == 0 {
+		return "", fmt.Errorf("audio data is empty")
+	}
+
+	reqBody := multimodalGenerateRequest{
+		Contents: []multimodalContent{{
+			Parts: []multimodalPart{
+				{Text: "Transcribe the following English audio accurately. Return only the transcription text."},
+				{InlineData: &inlineDataPart{
+					MimeType: "audio/wav",
+					Data:     base64.StdEncoding.EncodeToString(audioData),
+				}},
+			},
+		}},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+
+	modelsToTry := buildModelQueue(c.modelName, fallbackModels)
+
+	var lastErr error
+	for _, model := range modelsToTry {
+		url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, model, c.apiKey)
+
+		for attempt := 0; attempt < maxRetry; attempt++ {
+			if attempt > 0 {
+				wait := time.Duration(1<<uint(attempt)) * time.Second
+				time.Sleep(wait)
+			}
+
+			resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
+			if err != nil {
+				lastErr = err
+				continue
+			}
+
+			if resp.StatusCode == 429 {
+				resp.Body.Close()
+				lastErr = fmt.Errorf("HTTP 429")
+				break
+			}
+
+			if resp.StatusCode >= 500 {
+				resp.Body.Close()
+				lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+				continue
+			}
+
+			respBody, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return "", err
+			}
+
+			if resp.StatusCode != 200 {
+				return "", fmt.Errorf("transcription API error %d: %s", resp.StatusCode, string(respBody))
+			}
+
+			var result generateResponse
+			if err := json.Unmarshal(respBody, &result); err != nil {
+				return "", err
+			}
+
+			if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+				return "", fmt.Errorf("empty transcription response from API")
+			}
+
+			return result.Candidates[0].Content.Parts[0].Text, nil
+		}
+
+		if lastErr != nil && lastErr.Error() != "HTTP 429" {
+			return "", lastErr
+		}
+		if model != c.modelName {
+			fmt.Fprintf(os.Stderr, "gemini: transcribe switched to fallback model %s\n", model)
+		}
+	}
+
+	return "", fmt.Errorf("all transcription models rate limited: %w", lastErr)
 }
 
 func (c *Client) GenerateImagePrompt(text string) (string, error) {

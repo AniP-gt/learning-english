@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -17,9 +19,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		shouldTick := false
 		if m.readingTiming {
 			m.readingTimer++
+			shouldTick = true
+		}
+		if m.speechRecording {
+			if m.speechSecondsLeft > 0 {
+				m.speechSecondsLeft--
+			}
+			if m.speechSecondsLeft > 0 {
+				shouldTick = true
+			}
+		}
+		if shouldTick {
 			return m, tickCmd()
+		}
+		return m, nil
+
+	case speechRecordingMsg:
+		m.speechRecording = false
+		m.speechSecondsLeft = 0
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Recording error: %v", msg.err)
+			return m, nil
+		}
+		m.speechAudioPath = msg.audioPath
+		if !m.gemini.HasAPIKey() {
+			m.statusMsg = "Recording saved. Set GEMINI_API_KEY to transcribe."
+			return m, nil
+		}
+		m.speechLoading = true
+		m.statusMsg = "Transcribing speech..."
+		return m, m.transcribeRecordedSpeechCmd(msg.audioPath)
+
+	case speechTranscriptionMsg:
+		m.speechLoading = false
+		if msg.audioPath != "" {
+			m.speechAudioPath = msg.audioPath
+		}
+		if transcript := strings.TrimSpace(msg.transcript); transcript != "" {
+			m.speechTranscript = transcript
+			m.speechInput = transcript
+			m.speechCursor = len([]rune(m.speechInput))
+			_ = m.storage.WriteFile(m.weekPath, speechTranscriptFilename, []byte(transcript))
+		}
+		if msg.feedback != "" {
+			m.speechFeedback = msg.feedback
+			m.speechScrollOffset = 0
+			_ = m.storage.WriteFile(m.weekPath, "feedback.md", []byte(msg.feedback))
+		}
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Transcription error: %v", msg.err)
+			return m, nil
+		}
+		m.statusMsg = "Speech transcribed and analyzed."
+		return m, nil
+
+	case speechPlaybackMsg:
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Playback error: %v", msg.err)
+		} else {
+			m.statusMsg = "Playback finished."
 		}
 		return m, nil
 
@@ -171,5 +232,43 @@ func (m Model) saveToGit() tea.Cmd {
 	return func() tea.Msg {
 		m.statusMsg = "Saved (Git push requires GIT_ENABLED=true)"
 		return geminiResponseMsg{content: "", err: nil}
+	}
+}
+
+func (m Model) recordSpeechCmd() tea.Cmd {
+	audioPath := buildSpeechRecordingPath(m.storage.GetWeekDir(m.weekPath))
+	return func() tea.Msg {
+		err := recordSpeechAudio(audioPath, speechRecordingSeconds*time.Second)
+		return speechRecordingMsg{audioPath: audioPath, err: err}
+	}
+}
+
+func (m Model) transcribeRecordedSpeechCmd(audioPath string) tea.Cmd {
+	g := m.gemini
+	return func() tea.Msg {
+		audioData, err := os.ReadFile(audioPath)
+		if err != nil {
+			return speechTranscriptionMsg{audioPath: audioPath, err: err}
+		}
+
+		transcript, err := g.TranscribeSpeech(audioData)
+		if err != nil {
+			return speechTranscriptionMsg{audioPath: audioPath, err: err}
+		}
+
+		feedback, err := g.AnalyzeSpeech(transcript)
+		return speechTranscriptionMsg{
+			audioPath:  audioPath,
+			transcript: transcript,
+			feedback:   feedback,
+			err:        err,
+		}
+	}
+}
+
+func (m Model) playSpeechRecordingCmd() tea.Cmd {
+	audioPath := m.speechAudioPath
+	return func() tea.Msg {
+		return speechPlaybackMsg{err: playSpeechAudio(audioPath)}
 	}
 }
