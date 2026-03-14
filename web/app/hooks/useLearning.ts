@@ -12,6 +12,7 @@ import { useWeeks } from "./useWeeks";
 import { useSpeech } from "./useSpeech";
 import { useTimer } from "./useTimer";
 import { useSettings } from "./useSettings";
+import { useSpeechRecorder } from "./useSpeechRecorder";
 
 export const useLearning = () => {
   const {
@@ -46,6 +47,7 @@ export const useLearning = () => {
   const [scenePrompt, setScenePrompt] = useState("");
   const [sceneLoading, setSceneLoading] = useState(false);
   const [sceneError, setSceneError] = useState("");
+  const [weekImageUrl, setWeekImageUrl] = useState<string>("");
   const [chatHistory, setChatHistory] = useState<ChatHistoryEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -92,6 +94,7 @@ export const useLearning = () => {
     setReadingOutputAction: setReadingOutput,
     setReadingStatusAction: setReadingStatus,
     setDerivedStageAction: setDerivedStage,
+    setWeekImageUrlAction: setWeekImageUrl,
   });
 
   const filesystemAvailable = storageMetadata?.available ?? true;
@@ -178,6 +181,26 @@ export const useLearning = () => {
     handleSpeak,
     handleStop,
   } = useSpeech({ readingOutput, initialVoice: voice, onVoiceChangeAction: setVoice });
+
+  const {
+    recordingSupported: speechRecordingSupported,
+    isRecording: isSpeechRecording,
+    remainingSeconds: speechRecordingRemainingSeconds,
+    recordingReady: speechRecordingReady,
+    recordingDurationMs: speechRecordingDurationMs,
+    audioUrl: speechRecordingUrl,
+    audioBlob: speechRecordingBlob,
+    audioMimeType: speechRecordingMimeType,
+    recordingError: speechRecordingError,
+    recordingLimitSeconds: speechRecordingLimitSeconds,
+    startRecording: startSpeechRecording,
+    stopRecording: stopSpeechRecording,
+    resetRecording: resetSpeechRecordingBase,
+  } = useSpeechRecorder({ recordingLimitSeconds: 60 });
+
+  const [speechRecordingTranscript, setSpeechRecordingTranscript] = useState("");
+  const [speechTranscriptionError, setSpeechTranscriptionError] = useState("");
+  const [speechTranscriptionLoading, setSpeechTranscriptionLoading] = useState(false);
 
   const { timerSeconds, isTiming, handleStartTimer, handleStopTimer, resetTimer, wpmResult } = useTimer({
     readingOutput,
@@ -387,6 +410,81 @@ export const useLearning = () => {
     }
   }, [cefrLevel, sendGenerate, speechText]);
 
+  const handleTranscribeSpeechRecording = useCallback(async () => {
+    if (!speechRecordingBlob) {
+      setSpeechTranscriptionError("Record audio before requesting a transcription.");
+      return;
+    }
+
+    setSpeechTranscriptionError("");
+    setSpeechTranscriptionLoading(true);
+
+    try {
+      const audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result;
+          if (typeof result !== "string") {
+            reject(new Error("Unable to read the recorded audio."));
+            return;
+          }
+
+          const base64 = result.split(",")[1];
+          if (!base64) {
+            reject(new Error("Unable to encode the recorded audio."));
+            return;
+          }
+
+          resolve(base64);
+        };
+        reader.onerror = () => reject(new Error("Unable to read the recorded audio."));
+        reader.readAsDataURL(speechRecordingBlob);
+      });
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (apiKey) {
+        headers["x-api-key"] = apiKey;
+      }
+
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ audio, mimeType: speechRecordingMimeType }),
+        cache: "no-store",
+      });
+
+      const data = (await response.json()) as { transcript?: string; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to transcribe the recording.");
+      }
+      if (!data.transcript?.trim()) {
+        throw new Error("Transcription returned empty text.");
+      }
+
+      setSpeechRecordingTranscript(data.transcript.trim());
+    } catch (error) {
+      setSpeechTranscriptionError(error instanceof Error ? error.message : "Unable to transcribe the recording.");
+    } finally {
+      setSpeechTranscriptionLoading(false);
+    }
+  }, [apiKey, speechRecordingBlob, speechRecordingMimeType]);
+
+  const handleUseTranscriptFromRecording = useCallback(() => {
+    if (!speechRecordingTranscript.trim()) {
+      return;
+    }
+    setSpeechText(speechRecordingTranscript);
+  }, [setSpeechText, speechRecordingTranscript]);
+
+  const resetSpeechRecording = useCallback(() => {
+    resetSpeechRecordingBase();
+    setSpeechRecordingTranscript("");
+    setSpeechTranscriptionError("");
+    setSpeechTranscriptionLoading(false);
+  }, [resetSpeechRecordingBase]);
+
   const handleGenerateScene = useCallback(async () => {
     const source = speechText.trim() || readingOutput.trim();
     if (!source) {
@@ -512,6 +610,22 @@ export const useLearning = () => {
     speechFeedback,
     speechLoading,
     speechError,
+    speechRecordingSupported,
+    isSpeechRecording,
+    speechRecordingRemainingSeconds,
+    speechRecordingReady,
+    speechRecordingDurationMs,
+    speechRecordingUrl,
+    speechRecordingError,
+    speechRecordingTranscript,
+    speechTranscriptionLoading,
+    speechTranscriptionError,
+    speechRecordingLimitSeconds,
+    startSpeechRecording,
+    stopSpeechRecording,
+    resetSpeechRecording,
+    handleTranscribeSpeechRecording,
+    handleUseTranscriptFromRecording,
     scenePrompt,
     sceneLoading,
     sceneError,
@@ -573,5 +687,6 @@ export const useLearning = () => {
     showAnswer,
     handleCheckDictation,
     handleToggleAnswer,
+    weekImageUrl,
   };
 };

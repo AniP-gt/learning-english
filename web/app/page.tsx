@@ -75,8 +75,43 @@ export default function HomePage() {
       key="reading"
     />,
     <ListeningStep readingOutput={learning.readingOutput} listeningSupported={learning.listeningSupported} voices={learning.voices} selectedVoice={learning.selectedVoice} onVoiceChange={learning.setSelectedVoice} speechRate={learning.speechRate} onSpeechRateChange={learning.setSpeechRate} handleSpeak={learning.handleSpeak} handleStop={learning.handleStop} isSpeaking={learning.isSpeaking} dictationText={learning.dictationText} onDictationChange={learning.setDictationText} dictationScore={learning.dictationScore} showAnswer={learning.showAnswer} onCheckDictation={learning.handleCheckDictation} onToggleAnswer={learning.handleToggleAnswer} key="listening" />,
-    <SpeechStep speechText={learning.speechText} onSpeechTextChange={learning.setSpeechText} speechError={learning.speechError} speechLoading={learning.speechLoading} handleAnalyzeSpeech={learning.handleAnalyzeSpeech} speechFeedback={learning.speechFeedback} cefrLevel={learning.cefrLevel} key="speech" />,
-    <SceneStep sceneSourceText={learning.sceneSourceText} scenePrompt={learning.scenePrompt} sceneLoading={learning.sceneLoading} sceneError={learning.sceneError} handleGenerateScene={learning.handleGenerateScene} key="scene" />,
+    <SpeechStep
+      speechText={learning.speechText}
+      onSpeechTextChangeAction={learning.setSpeechText}
+      speechError={learning.speechError}
+      speechLoading={learning.speechLoading}
+      handleAnalyzeSpeechAction={learning.handleAnalyzeSpeech}
+      speechFeedback={learning.speechFeedback}
+      cefrLevel={learning.cefrLevel}
+      recordingSupported={learning.speechRecordingSupported}
+      isRecording={learning.isSpeechRecording}
+      remainingRecordingSeconds={learning.speechRecordingRemainingSeconds}
+      recordingReady={learning.speechRecordingReady}
+      recordingDurationMs={learning.speechRecordingDurationMs}
+      recordedAudioUrl={learning.speechRecordingUrl}
+      recordingError={learning.speechRecordingError}
+      transcript={learning.speechRecordingTranscript}
+      transcriptionLoading={learning.speechTranscriptionLoading}
+      transcriptionError={learning.speechTranscriptionError}
+      recordingLimitSeconds={learning.speechRecordingLimitSeconds}
+      handleStartRecordingAction={learning.startSpeechRecording}
+      handleStopRecordingAction={learning.stopSpeechRecording}
+      handleResetRecordingAction={learning.resetSpeechRecording}
+      handleTranscribeRecordingAction={learning.handleTranscribeSpeechRecording}
+      handleUseTranscriptAction={learning.handleUseTranscriptFromRecording}
+      key="speech"
+    />,
+
+    <SceneStep
+      sceneSourceText={learning.sceneSourceText}
+      scenePrompt={learning.scenePrompt}
+      sceneLoading={learning.sceneLoading}
+      sceneError={learning.sceneError}
+      handleGenerateSceneAction={learning.handleGenerateScene}
+      weekImageUrl={learning.weekImageUrl}
+      readingFallbackText={learning.readingOutput}
+      key="scene"
+    />,
     <RoleplayStep chatHistory={learning.chatHistory} chatError={learning.chatError} chatInput={learning.chatInput} onChatInputChange={learning.setChatInput} handleSendChat={learning.handleSendChat} chatLoading={learning.chatLoading} handleRequestFeedback={learning.handleRequestFeedback} feedbackLoading={learning.feedbackLoading} feedbackError={learning.feedbackError} feedbackMessage={learning.feedbackMessage} hasUserMessage={learning.hasUserMessage} key="roleplay" />,
   ];
 
