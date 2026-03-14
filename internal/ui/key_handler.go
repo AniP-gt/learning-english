@@ -68,6 +68,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.activeStep = core.StepRoleplay
 
 	case "tab":
+		m.replyScrollOffset = 0
 		if m.sidebarOpen {
 			m.sidebarFocused = !m.sidebarFocused
 		} else {
@@ -149,6 +150,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 
+		case core.StepRoleplay:
+			m.replyScrollOffset++
 	case "+", "=":
 		if m.activeStep == core.StepListening && m.listeningSpeed < 400 {
 			m.listeningSpeed += 20
@@ -158,6 +161,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.activeStep == core.StepListening && m.listeningSpeed > 80 {
 			m.listeningSpeed -= 20
 		}
+		case core.StepRoleplay:
+			if m.replyScrollOffset > 0 {
+				m.replyScrollOffset--
+			}
 
 	case "g":
 		return m.handleGeminiAction()

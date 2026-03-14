@@ -141,6 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 			m.replyLastAudio = reply
 			speed := m.listeningSpeed
+			m.replyScrollOffset = 0
 			return m, func() tea.Msg {
 				playSay(reply, speed)
 				return struct{}{}

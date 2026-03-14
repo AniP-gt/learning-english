@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -12,16 +14,33 @@ func (m Model) renderReplyStep(width, height int) string {
 		chatHeight = 4
 	}
 
+	chatBoxStyle := lipgloss.NewStyle().
+		Background(colorBgMid).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderAlt).
+		Padding(1, 2)
+	chatBoxWidth := width - 8
+	chatInnerWidth := visibleBoxWidth(chatBoxStyle, chatBoxWidth)
+	visible := visibleBoxLines(chatBoxStyle, chatHeight)
+
 	var chatLines []string
 	for _, msg := range m.replyMessages {
+		var label string
 		if msg.role == "user" {
-			label := styleUserChat.Render("You: ")
-			text := lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFg).Render(msg.content)
-			chatLines = append(chatLines, label+text)
+			label = styleUserChat.Render("You: ")
 		} else {
-			label := styleAssistantChat.Render("Gemini: ")
-			text := lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFg).Render(msg.content)
-			chatLines = append(chatLines, label+text)
+			label = styleAssistantChat.Render("Gemini: ")
+		}
+
+		labelWidth := lipgloss.Width(label)
+		messageWidth := max(1, chatInnerWidth-labelWidth)
+		wrappedLines := wrapPlainTextLines(msg.content, messageWidth)
+		for i, line := range wrappedLines {
+			if i == 0 {
+				chatLines = append(chatLines, label+line)
+				continue
+			}
+			chatLines = append(chatLines, strings.Repeat(" ", labelWidth)+line)
 		}
 		chatLines = append(chatLines, "")
 	}
@@ -35,22 +54,11 @@ func (m Model) renderReplyStep(width, height int) string {
 		chatContent = lipgloss.NewStyle().Background(colorBgMid).Foreground(colorFgDim).
 			Render("英語でメッセージを送るには 'i' を押してください。\n\nGemini が返答し、自動で音声読み上げします。\n's' でもう一度聴けます。'g' で直前の発言のフィードバック。")
 	} else {
-		offset := m.replyScrollOffset
-		if offset > len(chatLines)-1 {
-			offset = len(chatLines) - 1
-		}
-		if offset < 0 {
-			offset = 0
-		}
-		chatContent = lipgloss.JoinVertical(lipgloss.Left, chatLines[offset:]...)
+		chatContent = sliceVisibleLines(chatLines, m.replyScrollOffset, visible)
 	}
 
-	chatBox := lipgloss.NewStyle().
-		Background(colorBgMid).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(colorBorderAlt).
-		Padding(1, 2).
-		Width(width - 8).
+	chatBox := chatBoxStyle.
+		Width(chatBoxWidth).
 		Height(chatHeight).
 		Render(chatContent)
 
