@@ -70,10 +70,15 @@ export const useGenerate = ({
   );
 
   const generateReadingForTopic = useCallback(
-    async (topic: string) => {
+    async (topic: string, contextWords?: string) => {
       setReadingStatus("loading");
       try {
-        const reading = await sendGenerate({ action: "reading", input: topic, cefrLevel });
+        const reading = await sendGenerate({
+          action: "reading",
+          input: topic,
+          cefrLevel,
+          contextWords,
+        });
         setReadingOutput(stripReadingHeader(reading));
         setReadingStatus("ready");
         return reading;

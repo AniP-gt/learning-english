@@ -233,7 +233,9 @@ func (c *Client) GenerateWords(topic string, cefrLevel string) (string, error) {
 %sレベルの学習者に適した語彙を選び、以下のMarkdownテーブル形式で10-15単語を出力してください:
 | Word | Translation | Example |
 |------|-------------|---------|
-| word | 日本語訳 | Example sentence using the word. |`, topic, cefrLevel, cefrLevel)
+| word | 日本語訳 | Example sentence using the word. |
+
+強調のための ** 太字記法は使わないでください。`, topic, cefrLevel, cefrLevel)
 
 	return c.generate(prompt)
 }
@@ -265,6 +267,7 @@ func (c *Client) GenerateReading(topic string, cefrLevel string) (string, error)
 - 単語数: %s語
 - 自然な英語で書く
 - 複数の段落に分ける
+- ** の太字記法は使わない
 
 テキストの最初に # Reading と書き、次の行に CEFR: %s | Words: [実際の単語数] と書いてください。
 その後に本文を書いてください。`, topic, cefrLevel, wc, cefrLevel)

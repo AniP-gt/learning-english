@@ -22,6 +22,7 @@ export interface GenerateRequestPayload {
   cefrLevel?: CEFRLevel;
   history?: ChatHistoryEntry[];
   model?: GeminiModel;
+  contextWords?: string;
 }
 
 export interface GenerateResponsePayload {

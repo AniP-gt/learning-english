@@ -59,6 +59,7 @@ export const useSpeech = ({ readingOutput, initialVoice, onVoiceChangeAction }: 
   // If an initialVoice becomes available after mount (settings loaded), prefer it
   useEffect(() => {
     if (initialVoice && !selectedVoice) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedVoice(initialVoice);
     }
   }, [initialVoice, selectedVoice]);
@@ -99,7 +100,7 @@ export const useSpeech = ({ readingOutput, initialVoice, onVoiceChangeAction }: 
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  const handleStop = useCallback(() => {
+  const handleStop = () => {
     if (typeof window === "undefined") return;
     const synth = window.speechSynthesis;
     if (!synth) return;
@@ -111,10 +112,8 @@ export const useSpeech = ({ readingOutput, initialVoice, onVoiceChangeAction }: 
     }
     // Cancel any ongoing or queued utterances
     synth.cancel();
-    // clear the active utterance reference
-    utteranceRef.current = null;
     setIsSpeaking(false);
-  }, []);
+  };
 
   // When selectedVoice changes, notify external settings persistence if provided
   useEffect(() => {
