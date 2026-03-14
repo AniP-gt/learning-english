@@ -12,7 +12,22 @@ func (m Model) renderReadingStep(width, height int) string {
 
 	wordCount := len(strings.Fields(m.readingText))
 
-	textBox := styleContentBox.Width(width - 8).Render(m.readingText)
+	// determine available height for text box
+	textBoxHeight := height - 18
+	if textBoxHeight < 4 {
+		textBoxHeight = 4
+	}
+
+	textBoxWidth := width - 8
+	textInnerWidth := visibleBoxWidth(styleContentBox, textBoxWidth)
+	visible := visibleBoxLines(styleContentBox, textBoxHeight)
+	lines := wrapPlainTextLines(m.readingText, textInnerWidth)
+	visibleText := sliceVisibleLines(lines, m.readingScrollOffset, visible)
+
+	textBox := styleContentBox.
+		Width(textBoxWidth).
+		Height(textBoxHeight).
+		Render(visibleText)
 
 	timerColor := colorYellow
 	if m.readingTiming {
