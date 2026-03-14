@@ -1,19 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChatHistoryEntry } from "../types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatHistoryEntry, TranscriptionSource } from "../types";
 import { parseMarkdownTable, parseTopicFromIdea, reviewsCopy } from "../lib/constants";
 import { WordsTable } from "../lib/types";
 
 const MANUAL_WORDS_KEY = "learning-manual-words-md";
 const MANUAL_READING_KEY = "learning-manual-reading";
 const MANUAL_SCENE_IMAGE_KEY = "learning-manual-scene-image";
+type SpeechRecognitionConstructor = new () => SpeechRecognition;
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
 import { useGenerate } from "./useGenerate";
 import { useWeeks } from "./useWeeks";
 import { useSpeech } from "./useSpeech";
 import { useTimer } from "./useTimer";
 import { useSettings } from "./useSettings";
 import { useSpeechRecorder } from "./useSpeechRecorder";
+import { useSpeechRecognition } from "./useSpeechRecognition";
 
 export const useLearning = () => {
   const {
@@ -62,6 +70,7 @@ export const useLearning = () => {
   const [speechRecordingTranscript, setSpeechRecordingTranscript] = useState("");
   const [speechTranscriptionError, setSpeechTranscriptionError] = useState("");
   const [speechTranscriptionLoading, setSpeechTranscriptionLoading] = useState(false);
+  const [speechTranscriptionNotice, setSpeechTranscriptionNotice] = useState("");
   const [persistedSpeechRecordingUrl, setPersistedSpeechRecordingUrl] = useState<string | null>(null);
 
   const readingWordCount = useMemo(() => {
@@ -225,6 +234,24 @@ export const useLearning = () => {
     stopRecording: stopSpeechRecording,
     resetRecording: resetSpeechRecordingBase,
   } = useSpeechRecorder({ recordingLimitSeconds: 60 });
+
+  const {
+    recognitionSupported: speechRecognitionSupported,
+    transcript: browserSpeechTranscript,
+    error: speechRecognitionError,
+    startRecognition: startSpeechRecognition,
+    stopRecognition: stopSpeechRecognition,
+    resetRecognition: resetSpeechRecognition,
+  } = useSpeechRecognition({ lang: "en-US" });
+
+  useEffect(() => {
+    if (isSpeechRecording) {
+      startSpeechRecognition();
+      return;
+    }
+
+    stopSpeechRecognition();
+  }, [isSpeechRecording, startSpeechRecognition, stopSpeechRecognition]);
 
   const { timerSeconds, isTiming, handleStartTimer, handleStopTimer, resetTimer, wpmResult } = useTimer({
     readingOutput,
@@ -498,6 +525,33 @@ export const useLearning = () => {
     }
   }, [cefrLevel, saveSpeechArtifactsToFile, sendGenerate, speechText]);
 
+  const applySpeechTranscript = useCallback(
+    async ({
+      transcript,
+      audioBase64,
+      notice = "",
+    }: {
+      transcript: string;
+      audioBase64: string;
+      notice?: string;
+    }) => {
+      const trimmedTranscript = transcript.trim();
+      if (!trimmedTranscript) {
+        throw new Error("Transcription returned empty text.");
+      }
+
+      setSpeechRecordingTranscript(trimmedTranscript);
+      setSpeechTranscriptionNotice(notice);
+
+      await saveSpeechArtifactsToFile({
+        transcript: trimmedTranscript,
+        audioBase64,
+        audioMimeType: speechRecordingMimeType,
+      });
+    },
+    [saveSpeechArtifactsToFile, speechRecordingMimeType]
+  );
+
   const handleTranscribeSpeechRecording = useCallback(async () => {
     if (!speechRecordingBlob) {
       setSpeechTranscriptionError("Record audio before requesting a transcription.");
@@ -505,30 +559,31 @@ export const useLearning = () => {
     }
 
     setSpeechTranscriptionError("");
+    setSpeechTranscriptionNotice("");
     setSpeechTranscriptionLoading(true);
 
+    const audio = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Unable to read the recorded audio."));
+          return;
+        }
+
+        const base64 = result.split(",")[1];
+        if (!base64) {
+          reject(new Error("Unable to encode the recorded audio."));
+          return;
+        }
+
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error("Unable to read the recorded audio."));
+      reader.readAsDataURL(speechRecordingBlob);
+    });
+
     try {
-      const audio = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result;
-          if (typeof result !== "string") {
-            reject(new Error("Unable to read the recorded audio."));
-            return;
-          }
-
-          const base64 = result.split(",")[1];
-          if (!base64) {
-            reject(new Error("Unable to encode the recorded audio."));
-            return;
-          }
-
-          resolve(base64);
-        };
-        reader.onerror = () => reject(new Error("Unable to read the recorded audio."));
-        reader.readAsDataURL(speechRecordingBlob);
-      });
-
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -547,24 +602,46 @@ export const useLearning = () => {
       if (!response.ok) {
         throw new Error(data.error || "Unable to transcribe the recording.");
       }
-	      if (!data.transcript?.trim()) {
-	        throw new Error("Transcription returned empty text.");
-	      }
 
-	      const transcript = data.transcript.trim();
-	      setSpeechRecordingTranscript(transcript);
-
-	      await saveSpeechArtifactsToFile({
-	        transcript,
-	        audioBase64: audio,
-	        audioMimeType: speechRecordingMimeType,
-	      });
+      await applySpeechTranscript({
+        transcript: data.transcript ?? "",
+        audioBase64: audio,
+      });
     } catch (error) {
-      setSpeechTranscriptionError(error instanceof Error ? error.message : "Unable to transcribe the recording.");
+      if (browserSpeechTranscript.trim()) {
+        try {
+          await applySpeechTranscript({
+            transcript: browserSpeechTranscript,
+            audioBase64: audio,
+            notice: "Gemini transcription was unavailable, so the browser Web Speech API transcript was used.",
+          });
+          return;
+        } catch (fallbackError) {
+          setSpeechTranscriptionError(
+            fallbackError instanceof Error ? fallbackError.message : "Unable to transcribe the recording."
+          );
+          return;
+        }
+      }
+
+      const primaryMessage = error instanceof Error ? error.message : "Unable to transcribe the recording.";
+      const fallbackMessage = speechRecognitionSupported
+        ? speechRecognitionError || "Browser speech recognition did not capture any transcript during recording."
+        : "Browser speech recognition is unavailable in this browser.";
+
+      setSpeechTranscriptionError(`${primaryMessage} ${fallbackMessage}`.trim());
     } finally {
       setSpeechTranscriptionLoading(false);
     }
-  }, [apiKey, saveSpeechArtifactsToFile, speechRecordingBlob, speechRecordingMimeType]);
+  }, [
+    apiKey,
+    applySpeechTranscript,
+    browserSpeechTranscript,
+    speechRecognitionError,
+    speechRecognitionSupported,
+    speechRecordingBlob,
+    speechRecordingMimeType,
+  ]);
 
   const handleUseTranscriptFromRecording = useCallback(() => {
     if (!speechRecordingTranscript.trim()) {
@@ -575,11 +652,13 @@ export const useLearning = () => {
 
   const resetSpeechRecording = useCallback(() => {
     resetSpeechRecordingBase();
+    resetSpeechRecognition();
     setSpeechRecordingTranscript("");
     setSpeechTranscriptionError("");
     setSpeechTranscriptionLoading(false);
+    setSpeechTranscriptionNotice("");
     setPersistedSpeechRecordingUrl(null);
-  }, [resetSpeechRecordingBase]);
+  }, [resetSpeechRecognition, resetSpeechRecordingBase]);
 
   const handleGenerateScene = useCallback(async () => {
     const source = speechText.trim() || readingOutput.trim();
@@ -716,6 +795,8 @@ export const useLearning = () => {
     speechRecordingTranscript,
     speechTranscriptionLoading,
     speechTranscriptionError,
+    speechTranscriptionNotice,
+    speechRecognitionSupported,
     speechRecordingLimitSeconds,
     startSpeechRecording,
     stopSpeechRecording,

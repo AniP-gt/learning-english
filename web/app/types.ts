@@ -2,6 +2,8 @@ import { GeminiModel } from "./lib/geminiModels";
 
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
+export type TranscriptionSource = "none" | "gemini" | "browser";
+
 export type GenerateAction =
   | "topic"
   | "words"

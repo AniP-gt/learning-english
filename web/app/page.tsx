@@ -100,6 +100,8 @@ export default function HomePage() {
       transcript={learning.speechRecordingTranscript}
       transcriptionLoading={learning.speechTranscriptionLoading}
       transcriptionError={learning.speechTranscriptionError}
+      transcriptionNotice={learning.speechTranscriptionNotice}
+      browserFallbackSupported={learning.speechRecognitionSupported}
       recordingLimitSeconds={learning.speechRecordingLimitSeconds}
       handleStartRecordingAction={learning.startSpeechRecording}
       handleStopRecordingAction={learning.stopSpeechRecording}

@@ -20,6 +20,8 @@ type SpeechStepProps = {
   transcript: string;
   transcriptionLoading: boolean;
   transcriptionError: string;
+  transcriptionNotice: string;
+  browserFallbackSupported: boolean;
   recordingLimitSeconds: number;
   handleStartRecordingAction: () => Promise<void>;
   handleStopRecordingAction: () => void;
@@ -62,6 +64,8 @@ export const SpeechStep = ({
   transcript,
   transcriptionLoading,
   transcriptionError,
+  transcriptionNotice,
+  browserFallbackSupported,
   recordingLimitSeconds,
   handleStartRecordingAction,
   handleStopRecordingAction,
@@ -83,6 +87,9 @@ export const SpeechStep = ({
           <span className={`rounded-full border px-3 py-1 ${recordingSupported ? "border-[#24283b] bg-[#1f2335] text-[#9ece6a]" : "border-[#f7768e]/40 bg-[#2a1620] text-[#f7768e]"}`}>
             {recordingSupported ? "Microphone ready" : "Microphone unavailable"}
           </span>
+          <span className={`rounded-full border px-3 py-1 ${browserFallbackSupported ? "border-[#24283b] bg-[#1f2335] text-[#7dcfff]" : "border-[#24283b] bg-[#16161e] text-[#5b647b]"}`}>
+            {browserFallbackSupported ? "Web Speech fallback ready" : "Web Speech fallback unavailable"}
+          </span>
         </div>
       </div>
 
@@ -92,7 +99,7 @@ export const SpeechStep = ({
             <p className="text-xs uppercase tracking-[0.4em] text-[#5b647b]">1-minute speaking capture</p>
             <h3 className="text-xl font-bold text-[#cdd6f4]">Record your spoken English, replay it, then transcribe it.</h3>
             <p className="max-w-2xl text-[12px] leading-relaxed text-[#7f89a8]">
-              Start the timer, speak for up to one minute, then play the recording back and convert it to text before asking Gemini for feedback.
+              Start the timer, speak for up to one minute, then play the recording back and convert it to text before asking Gemini for feedback. If Gemini transcription is unavailable, the browser Web Speech API transcript will be used when supported.
             </p>
           </div>
           <div className="rounded-2xl border border-[#24283b] bg-[#0f111a] px-5 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
@@ -194,9 +201,12 @@ export const SpeechStep = ({
             {transcriptionError ? (
               <p className="mt-3 text-[12px] text-[#f7768e]">{transcriptionError}</p>
             ) : (
-              <pre className="mt-3 max-h-[240px] overflow-y-auto whitespace-pre-wrap rounded border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
-                {transcript}
-              </pre>
+              <>
+                {transcriptionNotice ? <p className="mt-3 text-[12px] text-[#7dcfff]">{transcriptionNotice}</p> : null}
+                <pre className="mt-3 max-h-[240px] overflow-y-auto whitespace-pre-wrap rounded border border-[#1f2335] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4]">
+                  {transcript}
+                </pre>
+              </>
             )}
           </div>
         )}
