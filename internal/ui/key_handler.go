@@ -58,10 +58,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.activeStep = core.StepWords
 	case "3":
 		m.activeStep = core.StepReading
+		m.readingScrollOffset = 0
 	case "4":
 		m.activeStep = core.StepListening
 	case "5":
 		m.activeStep = core.StepSpeech
+		m.speechScrollOffset = 0
 	case "6":
 		m.activeStep = core.StepThreeTwoOne
 	case "7":
@@ -143,14 +145,21 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		case core.StepSpeech:
 			if m.speechScrollOffset > 0 {
 				m.speechScrollOffset--
+		case core.StepReading:
+			m.readingScrollOffset++
 			}
 		case core.StepRoleplay:
+			// clamp will be applied in render path based on visible height
 			if m.replyScrollOffset > 0 {
 				m.replyScrollOffset--
 			}
 		}
 
 		case core.StepRoleplay:
+		case core.StepReading:
+			if m.readingScrollOffset > 0 {
+				m.readingScrollOffset--
+			}
 			m.replyScrollOffset++
 	case "+", "=":
 		if m.activeStep == core.StepListening && m.listeningSpeed < 400 {

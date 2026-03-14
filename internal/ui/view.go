@@ -20,8 +20,9 @@ func (m Model) View() string {
 
 	header := m.renderHeader()
 	tabs := m.renderTabs()
-	body := m.renderBody()
 	footer := m.renderFooter()
+	bodyHeight := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(tabs)-lipgloss.Height(footer))
+	body := m.renderBody(bodyHeight)
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, tabs, body, footer)
 }
@@ -68,9 +69,7 @@ func (m Model) renderTabs() string {
 		Render(bar)
 }
 
-func (m Model) renderBody() string {
-	bodyHeight := m.height - 4
-
+func (m Model) renderBody(bodyHeight int) string {
 	if m.sidebarOpen {
 		sidebarWidth := 28
 		contentWidth := m.width - sidebarWidth

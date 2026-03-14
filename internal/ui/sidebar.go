@@ -44,6 +44,7 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.readingTimer = 0
 	m.readingTiming = false
 	m.readingLoaded = false
+	m.readingScrollOffset = 0
 	m.words = ""
 	m.parsedWords = nil
 	m.flashcardChecked = nil

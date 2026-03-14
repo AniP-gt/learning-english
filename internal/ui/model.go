@@ -53,7 +53,8 @@ type Model struct {
 	readingTiming bool
 	readingLoaded bool
 
-	readingComment string
+	readingComment      string
+	readingScrollOffset int
 
 	listeningSpeed      int
 	listeningPlaying    bool

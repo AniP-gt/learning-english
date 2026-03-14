@@ -120,6 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.listeningText = m.readingText
 			m.readingLoaded = true
 			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.content))
+			m.readingScrollOffset = 0
 		case core.StepSpeech:
 			m.speechLoading = false
 			m.speechFeedback = msg.content
@@ -181,6 +182,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.listeningText = m.readingText
 			m.readingLoaded = true
 			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.readingContent))
+			m.readingScrollOffset = 0
+			_ = m.storage.WriteDayFile(m.currentDayPath(), "reading.md", []byte(msg.readingContent))
 		}
 		if len(errMsgs) > 0 {
 			m.statusMsg = fmt.Sprintf("Error: %s", strings.Join(errMsgs, " | "))
