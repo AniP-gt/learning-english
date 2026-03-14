@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -17,9 +19,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		shouldTick := false
 		if m.readingTiming {
 			m.readingTimer++
+			shouldTick = true
+		}
+		if m.speechRecording {
+			if m.speechSecondsLeft > 0 {
+				m.speechSecondsLeft--
+			}
+			if m.speechSecondsLeft > 0 {
+				shouldTick = true
+			}
+		}
+		if shouldTick {
 			return m, tickCmd()
+		}
+		return m, nil
+
+	case speechRecordingMsg:
+		m.speechRecording = false
+		m.speechSecondsLeft = 0
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Recording error: %v", msg.err)
+			return m, nil
+		}
+		m.speechAudioPath = msg.audioPath
+		if !m.gemini.HasAPIKey() {
+			m.statusMsg = "Recording saved. Set GEMINI_API_KEY to transcribe."
+			return m, nil
+		}
+		m.speechLoading = true
+		m.statusMsg = "Transcribing speech..."
+		return m, m.transcribeRecordedSpeechCmd(msg.audioPath)
+
+	case speechTranscriptionMsg:
+		m.speechLoading = false
+		currDayPath := m.currentDayPath()
+		if msg.audioPath != "" {
+			m.speechAudioPath = msg.audioPath
+		}
+		if transcript := strings.TrimSpace(msg.transcript); transcript != "" {
+			m.speechTranscript = transcript
+			m.speechInput = transcript
+			m.speechCursor = len([]rune(m.speechInput))
+			_ = m.storage.WriteDayFile(currDayPath, speechTranscriptFilename, []byte(transcript))
+		}
+		if msg.feedback != "" {
+			m.speechFeedback = msg.feedback
+			m.speechScrollOffset = 0
+			_ = m.storage.WriteDayFile(currDayPath, "feedback.md", []byte(msg.feedback))
+		}
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Transcription error: %v", msg.err)
+			return m, nil
+		}
+		m.statusMsg = "Speech transcribed and analyzed."
+		return m, nil
+
+	case speechPlaybackMsg:
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Playback error: %v", msg.err)
+		} else {
+			m.statusMsg = "Playback finished."
 		}
 		return m, nil
 
@@ -37,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case core.StepIdea:
 			m.ideaResponse = msg.content
 			m.ideaMode = false
-			_ = m.storage.WriteFile(m.weekPath, "topic.md", []byte(msg.content))
+			_ = m.storage.WriteWeekFile(m.weekPath, "topic.md", []byte(msg.content))
 			if m.gemini.HasAPIKey() {
 				cefrLevel := m.config.CEFRLevel
 				if cefrLevel == "" {
@@ -53,17 +115,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flashcardChecked = make([]bool, len(m.parsedWords))
 			m.flashcardIndex = 0
 			m.flashcardFlipped = false
-			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(msg.content))
+			_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(msg.content))
 		case core.StepReading:
 			m.readingText = extractBodyFromMarkdown(msg.content)
 			m.listeningText = m.readingText
 			m.readingLoaded = true
-			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.content))
+			m.readingScrollOffset = 0
+			_ = m.storage.WriteDayFile(m.currentDayPath(), "reading.md", []byte(msg.content))
 		case core.StepSpeech:
 			m.speechLoading = false
 			m.speechFeedback = msg.content
 			m.speechScrollOffset = 0
-			_ = m.storage.WriteFile(m.weekPath, "feedback.md", []byte(msg.content))
+			_ = m.storage.WriteDayFile(m.currentDayPath(), "feedback.md", []byte(msg.content))
 		case core.StepThreeTwoOne:
 			m.scene321 = msg.content
 		case core.StepRoleplay:
@@ -78,6 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				role:    "assistant",
 				content: reply,
 			})
+			m.replyScrollOffset = 0
 			m.replyLastAudio = reply
 			speed := m.listeningSpeed
 			return m, func() tea.Msg {
@@ -110,7 +174,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flashcardChecked = make([]bool, len(m.parsedWords))
 			m.flashcardIndex = 0
 			m.flashcardFlipped = false
-			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(msg.wordsContent))
+			_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(msg.wordsContent))
 		}
 		if msg.readingErr != nil {
 			errMsgs = append(errMsgs, fmt.Sprintf("Reading: %v", msg.readingErr))
@@ -118,7 +182,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.readingText = extractBodyFromMarkdown(msg.readingContent)
 			m.listeningText = m.readingText
 			m.readingLoaded = true
-			_ = m.storage.WriteFile(m.weekPath, "reading.md", []byte(msg.readingContent))
+			m.readingScrollOffset = 0
+			_ = m.storage.WriteDayFile(m.currentDayPath(), "reading.md", []byte(msg.readingContent))
 		}
 		if len(errMsgs) > 0 {
 			m.statusMsg = fmt.Sprintf("Error: %s", strings.Join(errMsgs, " | "))
@@ -171,5 +236,45 @@ func (m Model) saveToGit() tea.Cmd {
 	return func() tea.Msg {
 		m.statusMsg = "Saved (Git push requires GIT_ENABLED=true)"
 		return geminiResponseMsg{content: "", err: nil}
+	}
+}
+
+func (m Model) recordSpeechCmd() tea.Cmd {
+	dp := m.currentDayPath()
+	_ = m.storage.EnsureDayDir(dp)
+	audioPath := buildSpeechRecordingPath(m.storage.GetDayDir(dp))
+	return func() tea.Msg {
+		err := recordSpeechAudio(audioPath, speechRecordingSeconds*time.Second)
+		return speechRecordingMsg{audioPath: audioPath, err: err}
+	}
+}
+
+func (m Model) transcribeRecordedSpeechCmd(audioPath string) tea.Cmd {
+	g := m.gemini
+	return func() tea.Msg {
+		audioData, err := os.ReadFile(audioPath)
+		if err != nil {
+			return speechTranscriptionMsg{audioPath: audioPath, err: err}
+		}
+
+		transcript, err := g.TranscribeSpeech(audioData)
+		if err != nil {
+			return speechTranscriptionMsg{audioPath: audioPath, err: err}
+		}
+
+		feedback, err := g.AnalyzeSpeech(transcript)
+		return speechTranscriptionMsg{
+			audioPath:  audioPath,
+			transcript: transcript,
+			feedback:   feedback,
+			err:        err,
+		}
+	}
+}
+
+func (m Model) playSpeechRecordingCmd() tea.Cmd {
+	audioPath := m.speechAudioPath
+	return func() tea.Msg {
+		return speechPlaybackMsg{err: playSpeechAudio(audioPath)}
 	}
 }

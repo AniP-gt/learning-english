@@ -142,7 +142,7 @@ learning-english-data/
 - セッションごとにユニークな ID を付与し、session.json にチェックサムや生成元の Gemini prompt を残すと再現性が高まります。
 
 保存先のカスタマイズ:
-- デフォルトでは artifacts/ 以下に保存されますが、設定で保存先のファイルパスを指定できます。指定されたパスに対しては、week 単位で生成される Markdown ファイル（topic.md、words.md、reading.md、feedback.md）が直接書き込まれます。
+- デフォルトでは artifacts/ 以下に保存されますが、設定で保存先のファイルパスを指定できます。指定されたパスでは week 単位のディレクトリ（topic.md、words.md）を作成し、その下に day1/day2/... といったサブディレクトリを置いて、読み物・フィードバック・音声（reading.md、feedback.md、speech.wav、speech_transcript.txt）などを日別に保存します。
 - 外部リポジトリや任意のファイルパスを指定して保存する場合、ホスト側でその場所へ書き込み可能であることを確認してください。
 
 Docker の制約:
@@ -164,4 +164,3 @@ Docker の制約:
 1. 新しい機能はブランチを切る（例: feature/xxx）
 2. テストとローカル動作確認
 3. PR を作成してレビュー依頼
-

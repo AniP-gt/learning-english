@@ -31,12 +31,16 @@ export const describeLearningDataStorage = async (): Promise<StorageMetadata> =>
       };
     }
   } catch {
-    return {
-      available: false,
-      source: "localStorage",
-      reason: "missing_directory",
-      path: resolved,
-    };
+    try {
+      await fs.mkdir(resolved, { recursive: true });
+    } catch {
+      return {
+        available: false,
+        source: "localStorage",
+        reason: "missing_directory",
+        path: resolved,
+      };
+    }
   }
 
   return {

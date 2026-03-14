@@ -170,7 +170,7 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 					}
 				}
 				m.words = buildWordsMarkdown(m.parsedWords)
-				_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
+				_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(m.words))
 				m.wordsInputMode = false
 				m.wordsEditingAction = ""
 				m.statusMsg = "Saved words"
@@ -242,7 +242,7 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.wordsCursor >= 0 && m.wordsCursor < n {
 			m.parsedWords = append(m.parsedWords[:m.wordsCursor], m.parsedWords[m.wordsCursor+1:]...)
 			m.words = buildWordsMarkdown(m.parsedWords)
-			_ = m.storage.WriteFile(m.weekPath, "words.md", []byte(m.words))
+			_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(m.words))
 			if m.wordsCursor >= len(m.parsedWords) {
 				m.wordsCursor = len(m.parsedWords) - 1
 			}

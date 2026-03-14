@@ -64,6 +64,8 @@ echo "📅 Current week   : ${YEAR}/${MONTH}/week${WEEK_IN_MONTH}"
 echo ""
 
 mkdir -p "${WEEK_DIR}"
+DAY_DIR="${WEEK_DIR}/day1"
+mkdir -p "${DAY_DIR}"
 
 create_if_missing() {
   local file="$1"
@@ -93,13 +95,13 @@ create_if_missing "${WEEK_DIR}/words.md" "# Words — ${YEAR}/${MONTH}/week${WEE
 |------|-------------|---------|
 "
 
-create_if_missing "${WEEK_DIR}/reading.md" "# Reading — ${YEAR}/${MONTH}/week${WEEK_IN_MONTH}
+create_if_missing "${DAY_DIR}/reading.md" "# Reading — ${YEAR}/${MONTH}/week${WEEK_IN_MONTH}
 
 CEFR: B1 | Words: 0
 
 "
 
-create_if_missing "${WEEK_DIR}/feedback.md" "# Feedback — ${YEAR}/${MONTH}/week${WEEK_IN_MONTH}
+create_if_missing "${DAY_DIR}/feedback.md" "# Feedback — ${YEAR}/${MONTH}/week${WEEK_IN_MONTH}
 
 "
 

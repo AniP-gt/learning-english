@@ -20,6 +20,11 @@ type UseWeeksParams = {
   setReadingOutputAction: Dispatch<SetStateAction<string>>;
   setReadingStatusAction: StatusSetter;
   setDerivedStageAction: Dispatch<SetStateAction<ReviewStage>>;
+  setSpeechFeedbackAction: Dispatch<SetStateAction<string>>;
+  setSpeechTranscriptAction: Dispatch<SetStateAction<string>>;
+  setSpeechTextAction: Dispatch<SetStateAction<string>>;
+  setSpeechAudioUrlAction: Dispatch<SetStateAction<string | null>>;
+  setWeekImageUrlAction: Dispatch<SetStateAction<string>>;
 };
 
 export const useWeeks = ({
@@ -30,6 +35,11 @@ export const useWeeks = ({
   setReadingOutputAction,
   setReadingStatusAction,
   setDerivedStageAction,
+  setSpeechFeedbackAction,
+  setSpeechTranscriptAction,
+  setSpeechTextAction,
+  setSpeechAudioUrlAction,
+  setWeekImageUrlAction,
 }: UseWeeksParams) => {
   const [weeks, setWeeks] = useState<string[]>([]);
   const [weeksLoading, setWeeksLoading] = useState(true);
@@ -37,20 +47,40 @@ export const useWeeks = ({
   const [activeWeek, setActiveWeek] = useState<string | null>(null);
   const [weekFilesLoading, setWeekFilesLoading] = useState(false);
   const [storageMetadata, setStorageMetadata] = useState<StorageMetadata | null>(null);
+  const DEFAULT_DAY = "day1";
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
+  const [activeDay, setActiveDay] = useState<string>(DEFAULT_DAY);
   const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
 
   const loadWeekFiles = useCallback(
-    async (week: string) => {
+    async (week: string, requestedDay = DEFAULT_DAY) => {
       setWeekFilesLoading(true);
+      setWeekImageUrlAction("");
       try {
         const encoded = encodeURIComponent(week);
-        const res = await fetch(`/api/weeks/${encoded}/files`, { cache: "no-store" });
+        const query = new URLSearchParams();
+        if (requestedDay) {
+          query.set("day", requestedDay);
+        }
+        const res = await fetch(
+          `/api/weeks/${encoded}/files${query.toString() ? `?${query.toString()}` : ""}`,
+          { cache: "no-store" }
+        );
         let data: {
           topic: string | null;
           words: string | null;
           reading: string | null;
           feedback: string | null;
+          imageUrl?: string;
           storage?: StorageMetadata;
+          availableDays?: string[];
+          activeDay?: string;
+          dayFiles?: {
+            reading?: string | null;
+            feedback?: string | null;
+            speechTranscript?: string | null;
+            speechAudioUrl?: string | null;
+          } | null;
         } = { topic: null, words: null, reading: null, feedback: null };
         try {
           data = (await res.json()) as typeof data;
@@ -62,6 +92,13 @@ export const useWeeks = ({
         if (!res.ok) {
           return;
         }
+        const fetchedDays = Array.isArray(data.availableDays) ? data.availableDays : [];
+        setAvailableDays(fetchedDays);
+        const resolvedDay = data.activeDay ?? requestedDay;
+        if (resolvedDay) {
+          setActiveDay(resolvedDay);
+        }
+        setWeekImageUrlAction(data.imageUrl ?? "");
         if (data.topic) {
           setIdeaResponseAction(data.topic);
           setTopicHeaderAction(parseTopicFromIdea(data.topic));
@@ -71,26 +108,42 @@ export const useWeeks = ({
           setWordsOutputAction(data.words);
           setWordsStatusAction("ready");
         }
-        if (data.reading) {
-          setReadingOutputAction(stripReadingHeader(data.reading));
+        const dailyReading = data.dayFiles?.reading;
+        const dailyFeedback = data.dayFiles?.feedback ?? "";
+        const dailyTranscript = data.dayFiles?.speechTranscript?.trim() ?? "";
+        setSpeechFeedbackAction(dailyFeedback);
+        setSpeechTranscriptAction(dailyTranscript);
+        setSpeechTextAction(dailyTranscript);
+        setSpeechAudioUrlAction(data.dayFiles?.speechAudioUrl ?? null);
+        if (dailyReading) {
+          setReadingOutputAction(stripReadingHeader(dailyReading));
           setReadingStatusAction("ready");
           setDerivedStageAction("done");
+        } else {
+          setReadingOutputAction("");
+          setReadingStatusAction("idle");
+          setDerivedStageAction("idle");
         }
       } finally {
         setWeekFilesLoading(false);
       }
     },
-    [
-      setIdeaResponseAction,
-      setStorageMetadata,
-      setTopicHeaderAction,
-      setWordsOutputAction,
-      setWordsStatusAction,
-      setReadingOutputAction,
-      setReadingStatusAction,
-      setDerivedStageAction,
-    ]
-  );
+      [
+        setIdeaResponseAction,
+        setStorageMetadata,
+        setTopicHeaderAction,
+        setWordsOutputAction,
+        setWordsStatusAction,
+        setReadingOutputAction,
+        setReadingStatusAction,
+        setDerivedStageAction,
+        setSpeechFeedbackAction,
+        setSpeechTranscriptAction,
+        setSpeechTextAction,
+        setSpeechAudioUrlAction,
+        setWeekImageUrlAction,
+      ]
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -121,9 +174,9 @@ export const useWeeks = ({
         }
         if (initialWeek) {
           setActiveWeek(initialWeek);
-          void loadWeekFiles(initialWeek);
+          void loadWeekFiles(initialWeek, DEFAULT_DAY);
         }
-      } catch (error) {
+      } catch {
         if (cancelled) {
           return;
         }
@@ -140,6 +193,17 @@ export const useWeeks = ({
     };
   }, [currentWeekKey, loadWeekFiles]);
 
+  const selectDay = useCallback(
+    (day: string) => {
+      if (!activeWeek) {
+        return;
+      }
+      setActiveDay(day);
+      void loadWeekFiles(activeWeek, day);
+    },
+    [activeWeek, loadWeekFiles]
+  );
+
   return {
     weeks,
     weeksLoading,
@@ -147,8 +211,11 @@ export const useWeeks = ({
     activeWeek,
     weekFilesLoading,
     storageMetadata,
+    availableDays,
+    activeDay,
     setActiveWeek,
     loadWeekFiles,
+    selectDay,
     currentWeekKey,
   };
 };

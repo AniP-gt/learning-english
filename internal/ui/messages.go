@@ -23,6 +23,22 @@ type wordsReadingResponseMsg struct {
 	readingErr     error
 }
 
+type speechRecordingMsg struct {
+	audioPath string
+	err       error
+}
+
+type speechTranscriptionMsg struct {
+	audioPath  string
+	transcript string
+	feedback   string
+	err        error
+}
+
+type speechPlaybackMsg struct {
+	err error
+}
+
 type replyMessage struct {
 	role    string
 	content string

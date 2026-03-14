@@ -18,26 +18,78 @@ func NewFileStorage(baseDir string) *FileStorage {
 	return &FileStorage{baseDir: baseDir}
 }
 
-func (fs *FileStorage) EnsureWeekDir(path core.WeekPath) error {
-	dir := filepath.Join(fs.baseDir, path.Path())
-	return os.MkdirAll(dir, 0755)
-}
-
-func (fs *FileStorage) GetWeekDir(path core.WeekPath) string {
+func (fs *FileStorage) weekDir(path core.WeekPath) string {
 	return filepath.Join(fs.baseDir, path.Path())
 }
 
-func (fs *FileStorage) ReadFile(path core.WeekPath, filename string) ([]byte, error) {
+func (fs *FileStorage) dayDir(path core.DayPath) string {
+	return filepath.Join(fs.baseDir, path.Path())
+}
+
+func (fs *FileStorage) EnsureWeekDir(path core.WeekPath) error {
+	return os.MkdirAll(fs.weekDir(path), 0755)
+}
+
+func (fs *FileStorage) GetWeekDir(path core.WeekPath) string {
+	return fs.weekDir(path)
+}
+
+func (fs *FileStorage) GetDayDir(path core.DayPath) string {
+	return fs.dayDir(path)
+}
+
+func (fs *FileStorage) EnsureDayDir(path core.DayPath) error {
+	return os.MkdirAll(fs.dayDir(path), 0755)
+}
+
+func (fs *FileStorage) ReadWeekFile(path core.WeekPath, filename string) ([]byte, error) {
 	fullPath := filepath.Join(fs.GetWeekDir(path), filename)
 	return os.ReadFile(fullPath)
 }
 
-func (fs *FileStorage) WriteFile(path core.WeekPath, filename string, data []byte) error {
+func (fs *FileStorage) WriteWeekFile(path core.WeekPath, filename string, data []byte) error {
 	if err := fs.EnsureWeekDir(path); err != nil {
 		return fmt.Errorf("failed to ensure directory: %w", err)
 	}
 	fullPath := filepath.Join(fs.GetWeekDir(path), filename)
 	return os.WriteFile(fullPath, data, 0644)
+}
+
+func (fs *FileStorage) ReadFile(path core.WeekPath, filename string) ([]byte, error) {
+	return fs.ReadWeekFile(path, filename)
+}
+
+func (fs *FileStorage) WriteFile(path core.WeekPath, filename string, data []byte) error {
+	return fs.WriteWeekFile(path, filename, data)
+}
+
+func (fs *FileStorage) WeekFileExists(path core.WeekPath, filename string) bool {
+	fullPath := filepath.Join(fs.GetWeekDir(path), filename)
+	_, err := os.Stat(fullPath)
+	return err == nil
+}
+
+func (fs *FileStorage) FileExists(path core.WeekPath, filename string) bool {
+	return fs.WeekFileExists(path, filename)
+}
+
+func (fs *FileStorage) ReadDayFile(path core.DayPath, filename string) ([]byte, error) {
+	fullPath := filepath.Join(fs.GetDayDir(path), filename)
+	return os.ReadFile(fullPath)
+}
+
+func (fs *FileStorage) WriteDayFile(path core.DayPath, filename string, data []byte) error {
+	if err := fs.EnsureDayDir(path); err != nil {
+		return fmt.Errorf("failed to ensure directory: %w", err)
+	}
+	fullPath := filepath.Join(fs.GetDayDir(path), filename)
+	return os.WriteFile(fullPath, data, 0644)
+}
+
+func (fs *FileStorage) DayFileExists(path core.DayPath, filename string) bool {
+	fullPath := filepath.Join(fs.GetDayDir(path), filename)
+	_, err := os.Stat(fullPath)
+	return err == nil
 }
 
 func CurrentWeekPath() core.WeekPath {
@@ -98,10 +150,4 @@ func (fs *FileStorage) ListWeeks() ([]core.WeekPath, error) {
 		}
 	}
 	return weeks, nil
-}
-
-func (fs *FileStorage) FileExists(path core.WeekPath, filename string) bool {
-	fullPath := filepath.Join(fs.GetWeekDir(path), filename)
-	_, err := os.Stat(fullPath)
-	return err == nil
 }

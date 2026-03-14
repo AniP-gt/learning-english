@@ -14,12 +14,67 @@ import (
 )
 
 func (m Model) renderSpeechStep(width, height int) string {
+	outerStyle := lipgloss.NewStyle().
+		Background(colorBg).
+		Width(width).
+		Padding(1, 2)
+	innerHeight := max(1, height-outerStyle.GetVerticalFrameSize())
+
 	title := styleStepTitle.Foreground(colorRed).Render("Step 5: Speech — スピーチ解析")
 
-	feedbackHeight := height - 14
-	if feedbackHeight < 4 {
-		feedbackHeight = 4
+	// format seconds as MM:SS for clearer readability
+	mins := m.speechSecondsLeft / 60
+	secs := m.speechSecondsLeft % 60
+	countdownLabel := fmt.Sprintf("⏱ %02d:%02d", mins, secs)
+	countdownColor := colorBlue
+	if m.speechRecording {
+		countdownLabel = fmt.Sprintf("🎙 %02d:%02d remaining", mins, secs)
+		// when nearing the end, draw attention with yellow; otherwise red while recording
+		if m.speechSecondsLeft <= 10 {
+			countdownColor = colorYellow
+		} else {
+			countdownColor = colorRed
+		}
 	}
+
+	recordingState := "Ready"
+	if m.speechRecording {
+		recordingState = "Recording..."
+	} else if m.speechLoading {
+		recordingState = "Transcribing & analyzing..."
+	} else if m.speechAudioPath != "" {
+		recordingState = "Saved"
+	}
+
+	availability := []string{}
+	if m.speechCanRecord {
+		availability = append(availability, "Mic: ready")
+	} else {
+		availability = append(availability, "Mic: unavailable")
+	}
+	if m.speechAudioPath != "" && m.speechCanPlay {
+		availability = append(availability, "Playback: ready")
+	} else if m.speechAudioPath != "" {
+		availability = append(availability, "Playback: unavailable")
+	} else {
+		availability = append(availability, "Playback: no clip yet")
+	}
+
+	controlPanel := lipgloss.NewStyle().
+		Background(colorBgDark).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderAlt).
+		Padding(1, 2).
+		Width(width - 8).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.JoinHorizontal(lipgloss.Top,
+				lipgloss.NewStyle().Background(colorBgDark).Foreground(colorFg).Bold(true).Render("Mic capture"),
+				lipgloss.NewStyle().Background(colorBgDark).Foreground(countdownColor).Bold(true).PaddingLeft(2).Render(countdownLabel),
+			),
+			lipgloss.NewStyle().Background(colorBgDark).Foreground(colorFgDim).PaddingTop(1).Render("Status: "+recordingState),
+			lipgloss.NewStyle().Background(colorBgDark).Foreground(colorFgDim).Render(strings.Join(availability, "  |  ")),
+			lipgloss.NewStyle().Background(colorBgDark).Foreground(colorFgDim).PaddingTop(1).Render(m.speechAudioHint),
+		))
 
 	var inputSection string
 	if m.speechInputMode {
@@ -27,12 +82,17 @@ func (m Model) renderSpeechStep(width, height int) string {
 			"> " + insertCursor(m.speechInput, m.speechCursor),
 		)
 	} else if m.speechInput != "" {
+		inputPreview := sliceVisibleLines(
+			wrapPlainTextLines("Your speech: "+m.speechInput, width-12),
+			0,
+			2,
+		)
 		inputSection = lipgloss.NewStyle().
 			Background(colorBgDark).
 			Foreground(colorFg).
 			Padding(0, 2).
 			Width(width - 8).
-			Render("Your speech: " + m.speechInput)
+			Render(inputPreview)
 	} else {
 		inputSection = lipgloss.NewStyle().
 			Background(colorBgDark).
@@ -42,48 +102,103 @@ func (m Model) renderSpeechStep(width, height int) string {
 			Render("Press 'i' to enter your speech text...")
 	}
 
+	transcriptBoxStyle := lipgloss.NewStyle().
+		Background(colorBgMid).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderAlt).
+		Padding(1, 2)
+	feedbackBoxStyle := lipgloss.NewStyle().
+		Background(colorBgMid).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorderAlt).
+		Padding(1, 2)
+
+	hint := styleHint.Render("r: 60秒録音 | p: 再生 | i: テキスト入力 | Enter/g: 解析 | j/k: スクロール | Esc: キャンセル")
+
+	contentAreaHeight := innerHeight
+	baseHeight := lipgloss.Height(title) +
+		lipgloss.Height(controlPanel) +
+		lipgloss.Height(renderSpeechAudioPathLine(width, m.speechAudioPath)) +
+		lipgloss.Height(inputSection) +
+		lipgloss.Height(hint) +
+		6
+
+	remainingBoxHeight := max(10, contentAreaHeight-baseHeight)
+	minBoxHeight := transcriptBoxStyle.GetVerticalFrameSize() + 1
+	transcriptHeight := min(8, max(minBoxHeight, remainingBoxHeight/3))
+	feedbackHeight := max(minBoxHeight, remainingBoxHeight-transcriptHeight)
+
+	transcriptContent := lipgloss.NewStyle().Foreground(colorFgDim).Render("Record speech with 'r' to create a transcript automatically.")
+	if m.speechTranscript != "" {
+		transcriptWidth := visibleBoxWidth(transcriptBoxStyle, width-8)
+		transcriptVisible := visibleBoxLines(transcriptBoxStyle, transcriptHeight)
+		transcriptContent = sliceVisibleLines(
+			wrapPlainTextLines(m.speechTranscript, transcriptWidth),
+			0,
+			transcriptVisible,
+		)
+	}
+	if m.speechLoading {
+		transcriptContent = styleDimCenter.Render("⏳ Transcribing recorded audio...")
+	}
+
+	transcriptBox := transcriptBoxStyle.
+		Width(width - 8).
+		Height(transcriptHeight).
+		Render(
+			lipgloss.NewStyle().Background(colorBgMid).Foreground(colorBlue).Bold(true).Render("Transcript") + "\n" +
+				transcriptContent,
+		)
+
 	var feedbackContent string
 	if m.speechLoading {
-		feedbackContent = styleDimCenter.Render("⏳ Analyzing your speech...")
+		feedbackContent = styleDimCenter.Render("⏳ Preparing Gemini feedback...")
 	} else if m.speechFeedback != "" {
-		lines := strings.Split(m.speechFeedback, "\n")
-		offset := m.speechScrollOffset
-		if offset >= len(lines) {
-			offset = len(lines) - 1
-		}
-		if offset < 0 {
-			offset = 0
-		}
-		feedbackContent = strings.Join(lines[offset:], "\n")
+		feedbackBoxWidth := width - 8
+		feedbackInnerWidth := visibleBoxWidth(feedbackBoxStyle, feedbackBoxWidth)
+		visible := visibleBoxLines(feedbackBoxStyle, feedbackHeight)
+		lines := wrapPlainTextLines(m.speechFeedback, feedbackInnerWidth)
+		feedbackContent = sliceVisibleLines(lines, m.speechScrollOffset, visible)
 	} else {
 		feedbackContent = lipgloss.NewStyle().Foreground(colorFgDim).
 			Render("英語でスピーチを入力し、Enter を押すと Gemini が自動解析します。\n\n文法修正・語彙提案・改善例を表示します。")
 	}
 
-	feedbackBox := lipgloss.NewStyle().
-		Background(colorBgMid).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(colorBorderAlt).
-		Padding(1, 2).
+	feedbackBox := feedbackBoxStyle.
 		Width(width - 8).
 		Height(feedbackHeight).
 		Render(feedbackContent)
 
-	hint := styleHint.Render("i: スピーチ入力 | Enter: 解析開始 | g: 再解析 | j/k: スクロール | Esc: キャンセル")
-
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(controlPanel),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(renderSpeechAudioPathLine(width, m.speechAudioPath)),
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(transcriptBox),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputSection),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(feedbackBox),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
 	)
 
+	rendered := outerStyle.
+		Height(innerHeight).
+		Render(inner)
+
+	return cropRenderedHeight(rendered, height)
+}
+
+func renderSpeechAudioPathLine(width int, path string) string {
 	return lipgloss.NewStyle().
 		Background(colorBg).
-		Width(width).
-		Height(height).
-		Padding(1, 2).
-		Render(inner)
+		Foreground(colorFgDim).
+		Width(width - 8).
+		Render("📁 Audio: " + speechPathLabel(path))
+}
+
+func speechPathLabel(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return "(none yet)"
+	}
+	return path
 }
 
 func (m Model) render321Step(width, height int) string {

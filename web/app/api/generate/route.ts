@@ -57,11 +57,16 @@ const buildWordsPrompt = (topic: string, cefr: CEFRLevel) => {
 ${cefr}レベルの学習者に適した語彙を選び、以下のMarkdownテーブル形式で10-15単語を出力してください:
 | Word | Translation | Example |
 |------|-------------|---------|
-| word | 日本語訳 | Example sentence using the word. |`;
+| word | 日本語訳 | Example sentence using the word. |
+
+強調のための ** 太字記法は使わないでください。`;
 };
 
-const buildReadingPrompt = (topic: string, cefr: CEFRLevel) => {
+const buildReadingPrompt = (topic: string, cefr: CEFRLevel, contextWords?: string) => {
   const wordCount = WORD_COUNT_RANGE[cefr];
+  const contextBlock = contextWords?.trim()
+    ? `Use the following weekly vocabulary when writing the passage. Incorporate these terms naturally at least once each:\n${contextWords.trim()}\n\n`
+    : "";
   return `以下のトピックに関連する英文を作成してください。WPM計測用の読解テキストです。
 
 トピック: ${topic}
@@ -71,8 +76,9 @@ const buildReadingPrompt = (topic: string, cefr: CEFRLevel) => {
 - 単語数: ${wordCount}語
 - 自然な英語で書く
 - 複数の段落に分ける
+- ** の太字記法は使わない
 
-テキストの最初に # Reading と書き、次の行に CEFR: ${cefr} | Words: [実際の単語数] と書いてください。
+${contextBlock}テキストの最初に # Reading と書き、次の行に CEFR: ${cefr} | Words: [実際の単語数] と書いてください。
 その後に本文を書いてください。`;
 };
 
@@ -130,13 +136,13 @@ Provide:
 };
 
 const buildPrompt = (payload: GenerateRequestPayload, cefr: CEFRLevel) => {
-  switch (payload.action) {
-    case "topic":
-      return buildTopicPrompt(payload.input);
-    case "words":
-      return buildWordsPrompt(payload.input, cefr);
-    case "reading":
-      return buildReadingPrompt(payload.input, cefr);
+    switch (payload.action) {
+      case "topic":
+        return buildTopicPrompt(payload.input);
+      case "words":
+        return buildWordsPrompt(payload.input, cefr);
+      case "reading":
+        return buildReadingPrompt(payload.input, cefr, payload.contextWords);
     case "speech":
       return buildSpeechPrompt(payload.input, cefr);
     case "image_prompt":
