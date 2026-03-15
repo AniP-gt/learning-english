@@ -8,13 +8,6 @@ import { WordsTable } from "../lib/types";
 const MANUAL_WORDS_KEY = "learning-manual-words-md";
 const MANUAL_READING_KEY = "learning-manual-reading";
 const MANUAL_SCENE_IMAGE_KEY = "learning-manual-scene-image";
-type SpeechRecognitionConstructor = new () => SpeechRecognition;
-
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  }
-}
 import { useGenerate } from "./useGenerate";
 import { useWeeks } from "./useWeeks";
 import { useSpeech } from "./useSpeech";
