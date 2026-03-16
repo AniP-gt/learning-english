@@ -130,90 +130,73 @@ func (m Model) handleFlashcardKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // words edit handling moved here because it logically operates on flashcards
 func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	n := len(m.parsedWords)
-	// If we're in input mode, handle rune/backspace/enter/esc here so
-	// the user can actually type into the input buffer.
 	if m.wordsInputMode {
-		switch msg.Type {
-		case tea.KeyEsc:
-			// cancel input editing
+		switch msg.String() {
+		case "esc":
 			m.wordsInputMode = false
 			m.wordsEditingAction = ""
+			m = m.resetWordsForm()
 			m.statusMsg = "Cancelled edit"
 			return m, nil
-		case tea.KeyEnter:
-			// reuse existing enter-handling below by falling through to
-			// parsing and saving the buffer
-			cols := splitMarkdownRow(m.wordsInputBuffer)
-			if len(cols) >= 2 {
-				w := strings.TrimSpace(cols[0])
-				t := strings.TrimSpace(cols[1])
-				e := ""
-				if len(cols) >= 3 {
-					e = strings.TrimSpace(cols[2])
+		case "tab", "down":
+			return m.focusWordsFormField(m.wordsFormFocus + 1)
+		case "shift+tab", "up":
+			return m.focusWordsFormField(m.wordsFormFocus - 1)
+		case "enter":
+			word := strings.TrimSpace(m.wordsFormInputs[wordsFieldWord].Value())
+			translation := strings.TrimSpace(m.wordsFormInputs[wordsFieldTrans].Value())
+			example := strings.TrimSpace(m.wordsFormInputs[wordsFieldEx].Value())
+
+			if word == "" || translation == "" {
+				m.statusMsg = "Word and translation are required"
+				return m, nil
+			}
+
+			card := flashcard{word: word, translation: translation, example: example}
+			switch m.wordsEditingAction {
+			case "insert":
+				insertAt := m.wordsCursor + 1
+				if n == 0 {
+					insertAt = 0
 				}
-				if m.wordsEditingAction == "insert" {
-					insertAt := m.wordsCursor + 1
-					if insertAt < 0 {
-						insertAt = 0
-					}
-					new := flashcard{word: w, translation: t, example: e}
-					if insertAt >= len(m.parsedWords) {
-						m.parsedWords = append(m.parsedWords, new)
-					} else {
-						head := append([]flashcard{}, m.parsedWords[:insertAt]...)
-						head = append(head, new)
-						m.parsedWords = append(head, m.parsedWords[insertAt:]...)
-					}
-				} else if m.wordsEditingAction == "update" {
-					if m.wordsCursor >= 0 && m.wordsCursor < len(m.parsedWords) {
-						m.parsedWords[m.wordsCursor] = flashcard{word: w, translation: t, example: e}
-					}
+				if insertAt < 0 {
+					insertAt = 0
 				}
-				m.words = buildWordsMarkdown(m.parsedWords)
-				_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(m.words))
-				m.wordsInputMode = false
-				m.wordsEditingAction = ""
-				m.statusMsg = "Saved words"
-			} else {
-				m.statusMsg = "Invalid row format"
+				if insertAt >= len(m.parsedWords) {
+					m.parsedWords = append(m.parsedWords, card)
+					m.wordsCursor = len(m.parsedWords) - 1
+				} else {
+					head := append([]flashcard{}, m.parsedWords[:insertAt]...)
+					head = append(head, card)
+					m.parsedWords = append(head, m.parsedWords[insertAt:]...)
+					m.wordsCursor = insertAt
+				}
+			case "update":
+				if m.wordsCursor >= 0 && m.wordsCursor < len(m.parsedWords) {
+					m.parsedWords[m.wordsCursor] = card
+				}
 			}
-			return m, nil
-		case tea.KeyLeft:
-			if m.wordsInputCursor > 0 {
-				m.wordsInputCursor--
-			}
-			return m, nil
-		case tea.KeyRight:
-			runes := []rune(m.wordsInputBuffer)
-			if m.wordsInputCursor < len(runes) {
-				m.wordsInputCursor++
-			}
-			return m, nil
-		case tea.KeyBackspace:
-			runes := []rune(m.wordsInputBuffer)
-			if m.wordsInputCursor > 0 && len(runes) > 0 {
-				m.wordsInputBuffer = string(runes[:m.wordsInputCursor-1]) + string(runes[m.wordsInputCursor:])
-				m.wordsInputCursor--
-			}
-			return m, nil
-		case tea.KeyRunes, tea.KeySpace:
-			runes := []rune(m.wordsInputBuffer)
-			ins := msg.Runes
-			m.wordsInputBuffer = string(runes[:m.wordsInputCursor]) + string(ins) + string(runes[m.wordsInputCursor:])
-			m.wordsInputCursor += len(ins)
-			return m, nil
-		default:
-			// ignore other keys while editing
+
+			m.words = buildWordsMarkdown(m.parsedWords)
+			_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(m.words))
+			m.wordsInputMode = false
+			m.wordsEditingAction = ""
+			m = m.resetWordsForm()
+			m.statusMsg = "Saved words"
 			return m, nil
 		}
+
+		var cmd tea.Cmd
+		m.wordsFormInputs[m.wordsFormFocus], cmd = m.wordsFormInputs[m.wordsFormFocus].Update(msg)
+		return m, cmd
 	}
 
-	// Not in input mode — handle navigation and commands
 	switch msg.String() {
 	case "esc", "q":
 		m.wordsEditMode = false
 		m.wordsInputMode = false
 		m.wordsEditingAction = ""
+		m = m.resetWordsForm()
 		m.statusMsg = "Exited words edit mode"
 	case "j", "down":
 		if m.wordsCursor < n-1 {
@@ -225,18 +208,17 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case "i":
 		m.wordsInputMode = true
-		m.wordsInputBuffer = "|  |  |  |"
-		m.wordsInputCursor = len([]rune(m.wordsInputBuffer))
+		m = m.resetWordsForm()
 		m.wordsEditingAction = "insert"
-		m.statusMsg = "Insert new row. Enter to confirm."
+		m.statusMsg = "Insert new row. Fill in the fields and press Enter to save."
+		return m, nil
 	case "u":
 		if m.wordsCursor >= 0 && m.wordsCursor < n {
-			c := m.parsedWords[m.wordsCursor]
-			m.wordsInputBuffer = fmt.Sprintf("| %s | %s | %s |", c.word, c.translation, c.example)
-			m.wordsInputCursor = len([]rune(m.wordsInputBuffer))
+			m = m.setWordsFormValues(m.parsedWords[m.wordsCursor])
 			m.wordsInputMode = true
 			m.wordsEditingAction = "update"
-			m.statusMsg = "Update row. Edit and press Enter to save."
+			m.statusMsg = "Update row. Edit the fields and press Enter to save."
+			return m, nil
 		}
 	case "d":
 		if m.wordsCursor >= 0 && m.wordsCursor < n {
@@ -245,6 +227,9 @@ func (m Model) handleWordsEditKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			_ = m.storage.WriteWeekFile(m.weekPath, "words.md", []byte(m.words))
 			if m.wordsCursor >= len(m.parsedWords) {
 				m.wordsCursor = len(m.parsedWords) - 1
+			}
+			if m.wordsCursor < 0 {
+				m.wordsCursor = 0
 			}
 			m.statusMsg = "Deleted row"
 		}

@@ -43,8 +43,8 @@ type Model struct {
 	wordsEditMode      bool
 	wordsCursor        int
 	wordsInputMode     bool
-	wordsInputBuffer   string
-	wordsInputCursor   int
+	wordsFormInputs    [3]textinput.Model
+	wordsFormFocus     int
 	wordsEditingAction string
 
 	flashcardMode    bool

@@ -76,9 +76,9 @@ func (m Model) renderWordsStep(width, height int) string {
 	} else if m.words != "" {
 		var hint string
 		if len(m.parsedWords) > 0 {
-			hint = styleHint.Render(fmt.Sprintf("g: 再生成 | f: フラッシュカードモード (%d 単語)", len(m.parsedWords)))
+			hint = styleHint.Render(fmt.Sprintf("g: 再生成 | e: 編集モード | f: フラッシュカードモード (%d 単語)", len(m.parsedWords)))
 		} else {
-			hint = styleHint.Render("g: 再生成")
+			hint = styleHint.Render("g: 再生成 | e: 編集モード")
 		}
 		content = lipgloss.JoinVertical(lipgloss.Left,
 			styleContentBox.Width(width-8).Render(m.words),
@@ -89,7 +89,7 @@ func (m Model) renderWordsStep(width, height int) string {
 			styleContentBox.Width(width-8).
 				Foreground(colorFgDim).
 				Render("単語リストがまだありません。\n\nStep 1 でトピックを生成してから 'g' を押してください。\n\n例:\n| Word | Translation | Example |\n|------|-------------|---------||\n| coffee | コーヒー | I love coffee every morning. |\n| aroma | 香り | The aroma is wonderful. |"),
-			styleHint.Render("g: Gemini で単語生成 (Step 1 完了後)"),
+			styleHint.Render("g: Gemini で単語生成 (Step 1 完了後) | e: 編集モードで手動追加"),
 		)
 	}
 

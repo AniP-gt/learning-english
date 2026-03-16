@@ -4,8 +4,70 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+const (
+	wordsFieldCount = 3
+	wordsFieldWord  = 0
+	wordsFieldTrans = 1
+	wordsFieldEx    = 2
+)
+
+var wordsFieldLabels = [wordsFieldCount]string{
+	"Word",
+	"Translation",
+	"Example sentence",
+}
+
+func newWordsFormInputs() [wordsFieldCount]textinput.Model {
+	placeholders := [wordsFieldCount]string{
+		"coffee",
+		"コーヒー",
+		"I drink coffee every morning.",
+	}
+
+	var inputs [wordsFieldCount]textinput.Model
+	for i := range inputs {
+		ti := textinput.New()
+		ti.Width = 56
+		ti.Placeholder = placeholders[i]
+		inputs[i] = ti
+	}
+	inputs[0].Focus()
+	return inputs
+}
+
+func (m Model) resetWordsForm() Model {
+	m.wordsFormInputs = newWordsFormInputs()
+	m.wordsFormFocus = 0
+	return m
+}
+
+func (m Model) setWordsFormValues(card flashcard) Model {
+	m = m.resetWordsForm()
+	m.wordsFormInputs[wordsFieldWord].SetValue(card.word)
+	m.wordsFormInputs[wordsFieldTrans].SetValue(card.translation)
+	m.wordsFormInputs[wordsFieldEx].SetValue(card.example)
+	return m
+}
+
+func (m Model) focusWordsFormField(next int) (Model, tea.Cmd) {
+	if next < 0 {
+		next = wordsFieldCount - 1
+	}
+	if next >= wordsFieldCount {
+		next = 0
+	}
+	for i := range m.wordsFormInputs {
+		m.wordsFormInputs[i].Blur()
+	}
+	m.wordsFormFocus = next
+	cmd := m.wordsFormInputs[next].Focus()
+	return m, cmd
+}
 
 func (m Model) renderWordsEditMode(width, height int) string {
 	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — Edit Mode")
@@ -33,7 +95,25 @@ func (m Model) renderWordsEditMode(width, height int) string {
 
 	var inputBox string
 	if m.wordsInputMode {
-		inputBox = styleContentBox.Width(width - 8).Render(insertCursor(m.wordsInputBuffer, m.wordsInputCursor))
+		formRows := make([]string, 0, wordsFieldCount*2+1)
+		for i, label := range wordsFieldLabels {
+			labelStyle := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim)
+			borderColor := colorBorder
+			if i == m.wordsFormFocus {
+				labelStyle = labelStyle.Foreground(colorYellow).Bold(true)
+				borderColor = colorBlue
+			}
+
+			formRows = append(formRows, labelStyle.Render(label))
+			formRows = append(formRows, lipgloss.NewStyle().
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(borderColor).
+				Padding(0, 1).
+				Width(width-12).
+				Render(m.wordsFormInputs[i].View()))
+		}
+		formRows = append(formRows, styleHint.Render("Tab/↑/↓: move field | Enter: save | Esc: cancel"))
+		inputBox = styleContentBox.Width(width - 8).Render(lipgloss.JoinVertical(lipgloss.Left, formRows...))
 	} else {
 		hint := styleHint.Render("i:insert u:update d:delete Enter:confirm esc:exit")
 		inputBox = hint
