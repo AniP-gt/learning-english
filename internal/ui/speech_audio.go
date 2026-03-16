@@ -26,6 +26,11 @@ type speechAudioTools struct {
 	playerPath   string
 }
 
+type listeningPlaybackFinishedMsg struct {
+	playbackID int
+	err        error
+}
+
 func detectSpeechAudioTools() speechAudioTools {
 	tools := speechAudioTools{}
 	if runtime.GOOS != "darwin" {
@@ -51,7 +56,13 @@ var (
 	recordingMu     sync.Mutex
 	recordingCancel context.CancelFunc
 	recordingCmd    *exec.Cmd
+
+	speechPlaybackMu     sync.Mutex
+	speechPlaybackCancel context.CancelFunc
+	speechPlaybackCmd    *exec.Cmd
 )
+
+var errSpeechPlaybackStopped = errors.New("speech playback stopped")
 
 func (t speechAudioTools) CanRecord() bool {
 	return t.recorderPath != ""
@@ -170,6 +181,41 @@ func playSpeechAudio(path string) error {
 	return nil
 }
 
+func playSay(text string, speed int) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "say", "-r", strconv.Itoa(speed), text)
+
+	speechPlaybackMu.Lock()
+	speechPlaybackCancel = cancel
+	speechPlaybackCmd = cmd
+	speechPlaybackMu.Unlock()
+
+	output, err := cmd.CombinedOutput()
+
+	speechPlaybackMu.Lock()
+	if speechPlaybackCmd == cmd {
+		speechPlaybackCancel = nil
+		speechPlaybackCmd = nil
+	}
+	speechPlaybackMu.Unlock()
+
+	if ctx.Err() == context.Canceled {
+		return errSpeechPlaybackStopped
+	}
+	if err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed != "" {
+			return fmt.Errorf("speech playback failed: %w (%s)", err, trimmed)
+		}
+		return fmt.Errorf("speech playback failed: %w", err)
+	}
+	return nil
+}
+
 // StopOngoingRecording requests cancellation of a running recording, if any.
 // It is safe to call multiple times.
 func StopOngoingRecording() error {
@@ -189,6 +235,26 @@ func StopOngoingRecording() error {
 	// give the process a short moment to exit; try killing if still running
 	if cmd != nil && cmd.Process != nil {
 		// best-effort
+		_ = cmd.Process.Kill()
+	}
+	return nil
+}
+
+func StopOngoingSpeechPlayback() error {
+	speechPlaybackMu.Lock()
+	cancel := speechPlaybackCancel
+	cmd := speechPlaybackCmd
+	speechPlaybackMu.Unlock()
+
+	if cancel == nil && cmd == nil {
+		return fmt.Errorf("no speech playback in progress")
+	}
+
+	if cancel != nil {
+		cancel()
+	}
+
+	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Kill()
 	}
 	return nil

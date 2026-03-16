@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -82,6 +83,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("Playback error: %v", msg.err)
 		} else {
 			m.statusMsg = "Playback finished."
+		}
+		return m, nil
+
+	case listeningPlaybackFinishedMsg:
+		if msg.playbackID != m.listeningPlaybackID {
+			return m, nil
+		}
+		m.listeningPlaying = false
+		if msg.err != nil && !errors.Is(msg.err, errSpeechPlaybackStopped) {
+			m.statusMsg = fmt.Sprintf("Listening playback error: %v", msg.err)
 		}
 		return m, nil
 
@@ -223,12 +234,11 @@ func (m Model) generateWordsAndReading(topic, cefrLevel string) tea.Cmd {
 	}
 }
 
-func (m Model) playSayCmd() tea.Cmd {
+func (m Model) playSayCmd(playbackID int) tea.Cmd {
 	text := m.listeningText
 	speed := m.listeningSpeed
 	return func() tea.Msg {
-		playSay(text, speed)
-		return struct{}{}
+		return listeningPlaybackFinishedMsg{playbackID: playbackID, err: playSay(text, speed)}
 	}
 }
 

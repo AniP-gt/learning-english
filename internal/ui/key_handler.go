@@ -117,21 +117,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, tickCmd()
 
 		case core.StepListening:
-			if !m.listeningPlaying {
-				m.listeningPlaying = true
-				return m, m.playSayCmd()
-			}
+			return m.toggleListeningPlayback()
 		}
 
 	case "s":
 		switch m.activeStep {
 		case core.StepListening:
-			if !m.listeningPlaying {
-				m.listeningPlaying = true
-				return m, m.playSayCmd()
-			} else {
-				m.listeningPlaying = false
-			}
+			return m.toggleListeningPlayback()
 		case core.StepRoleplay:
 			if m.replyLastAudio != "" {
 				audio := m.replyLastAudio
@@ -287,6 +279,20 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	}
 
+	return m, nil
+}
+
+func (m Model) toggleListeningPlayback() (Model, tea.Cmd) {
+	if !m.listeningPlaying {
+		m.listeningPlaying = true
+		m.listeningPlaybackID++
+		return m, m.playSayCmd(m.listeningPlaybackID)
+	}
+
+	m.listeningPlaying = false
+	if err := StopOngoingSpeechPlayback(); err != nil {
+		m.statusMsg = fmt.Sprintf("Playback stop error: %v", err)
+	}
 	return m, nil
 }
 

@@ -60,6 +60,7 @@ type Model struct {
 
 	listeningSpeed      int
 	listeningPlaying    bool
+	listeningPlaybackID int
 	listeningText       string
 	dictationInput      string
 	dictationCursor     int

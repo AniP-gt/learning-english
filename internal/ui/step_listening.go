@@ -3,22 +3,11 @@ package ui
 import (
 	"fmt"
 	"math"
-	"os/exec"
-	"runtime"
-	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
 )
-
-func playSay(text string, speed int) {
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	cmd := exec.Command("say", "-r", strconv.Itoa(speed), text)
-	_ = cmd.Run()
-}
 
 func (m Model) renderListeningStep(width, height int) string {
 	title := styleStepTitle.Foreground(colorPurple).Render("Step 4: Listening — Dictation")
