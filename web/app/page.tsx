@@ -63,7 +63,7 @@ export default function HomePage() {
       manualImportReady={learning.manualImportReady}
       onManualMarkdownChangeAction={learning.handleManualWordsMarkdownChange}
       onManualWordsImportAction={learning.handleManualWordsImport}
-      onClearManualDataAction={learning.handleClearManualData}
+      onClearManualData={learning.handleClearManualData}
       key="words"
     />,
     <ReadingStep
