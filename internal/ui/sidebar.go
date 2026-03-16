@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -64,7 +65,7 @@ func (m Model) switchWeek(wp core.WeekPath) (Model, tea.Cmd) {
 	m.replyFeedback = ""
 	m.statusMsg = fmt.Sprintf("Switched to %s", wp.Path())
 	m = m.loadWeekMetadata(wp)
-	m = m.switchToDay(m.activeDay)
+	m = m.resolveWeekDayState(wp, m.activeDay)
 
 	for _, ext := range []string{".png", ".jpg"} {
 		filename := "scene_321" + ext
@@ -104,6 +105,7 @@ func (m Model) renderSidebar(width, height int) string {
 	}
 
 	header := headerStyle.Render(fmt.Sprintf("📂 WEEKS (Day %d)", m.activeDay))
+	dayChips := m.renderDaySwitcher(width - 2)
 
 	var lines []string
 	currentPath := storage.CurrentWeekPath()
@@ -207,6 +209,7 @@ func (m Model) renderSidebar(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		header,
+		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(dayChips),
 		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(tree),
 		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(dataPathLine),
 		hint,
@@ -225,6 +228,37 @@ func (m Model) renderSidebar(width, height int) string {
 		Width(width).
 		Height(height).
 		Render(inner)
+}
+
+func (m Model) renderDaySwitcher(width int) string {
+	chips := make([]string, 0, maxDays)
+	for day := 1; day <= maxDays; day++ {
+		label := fmt.Sprintf("D%d", day)
+		available := m.hasAvailableDay(day)
+		style := lipgloss.NewStyle().
+			Padding(0, 1).
+			Foreground(colorFgDim)
+
+		if available {
+			style = style.Foreground(colorGreen)
+		}
+		if day == m.activeDay {
+			style = style.
+				Background(colorBlue).
+				Foreground(colorBg).
+				Bold(true)
+		}
+		if !available && day != m.activeDay {
+			label = "·"
+		}
+		chips = append(chips, style.Render(label))
+	}
+
+	line := strings.Join(chips, " ")
+	if lipgloss.Width(line) > width {
+		return lipgloss.NewStyle().Width(width).Render(line)
+	}
+	return line
 }
 
 func truncateLeft(s string, maxLen int) string {
@@ -268,6 +302,8 @@ func (m Model) ensureCurrentWeekAndFiles() Model {
 	for day := 1; day <= maxDays; day++ {
 		m = m.ensureDayFiles(wp, day)
 	}
+	m.availableDays = m.listAvailableDays(wp)
+	m.activeDay = resolveRequestedDay(m.activeDay, m.availableDays)
 
 	return m
 }
