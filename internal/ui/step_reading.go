@@ -9,6 +9,11 @@ import (
 
 func (m Model) renderReadingStep(width, height int) string {
 	title := styleStepTitle.Foreground(colorCyan).Render("Step 3: Reading — WPM計測")
+	var selectionHint string
+	if m.awaitingDayDigit {
+		selectionHint = " (awaiting 1..7)"
+	}
+	subtitle := styleHint.Render(fmt.Sprintf("Active day: day%d%s | g: regenerate reading for this day | [, ]: switch day | d then 1..7: jump", m.activeDay, selectionHint))
 
 	wordCount := len(strings.Fields(m.readingText))
 
@@ -81,6 +86,7 @@ func (m Model) renderReadingStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
+		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(subtitle),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(textBox),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(statsRow),
 		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(timerBtn),

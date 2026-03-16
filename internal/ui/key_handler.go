@@ -50,25 +50,103 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.settingsMsg = ""
 
 	case "1":
-		m.activeStep = core.StepIdea
-		// ensure we are on current week and that markdown files exist when user
-		// switches to Step 1 (Idea). This makes starting today's study easier.
-		m = m.ensureCurrentWeekAndFiles()
+		if m.awaitingDayDigit {
+			// day selection mode: jump to day 1
+			day := 1
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepIdea
+			// ensure we are on current week and that markdown files exist when user
+			// switches to Step 1 (Idea). This makes starting today's study easier.
+			m = m.ensureCurrentWeekAndFiles()
+		}
 	case "2":
-		m.activeStep = core.StepWords
+		if m.awaitingDayDigit {
+			day := 2
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepWords
+		}
 	case "3":
-		m.activeStep = core.StepReading
-		m.readingScrollOffset = 0
+		if m.awaitingDayDigit {
+			day := 3
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepReading
+			m.readingScrollOffset = 0
+		}
 	case "4":
-		m.activeStep = core.StepListening
+		if m.awaitingDayDigit {
+			day := 4
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepListening
+		}
 	case "5":
-		m.activeStep = core.StepSpeech
-		m.speechScrollOffset = 0
+		if m.awaitingDayDigit {
+			day := 5
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepSpeech
+			m.speechScrollOffset = 0
+		}
 	case "6":
-		m.activeStep = core.StepThreeTwoOne
+		if m.awaitingDayDigit {
+			day := 6
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepThreeTwoOne
+		}
 	case "7":
-		m.activeStep = core.StepRoleplay
-		m.replyScrollOffset = 0
+		if m.awaitingDayDigit {
+			day := 7
+			m.awaitingDayDigit = false
+			if m.hasAvailableDay(day) {
+				m = m.switchToDay(day)
+				m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
+			} else {
+				m.statusMsg = fmt.Sprintf("Day %d not available", day)
+			}
+		} else {
+			m.activeStep = core.StepRoleplay
+			m.replyScrollOffset = 0
+		}
 
 	case "tab":
 		if m.sidebarOpen {
@@ -85,13 +163,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 	case "[":
-		if m.activeDay > 1 {
-			m = m.switchToDay(m.activeDay - 1)
+		prevDay := m.previousAvailableDay()
+		if prevDay != m.activeDay {
+			m = m.switchToDay(prevDay)
 			m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
 		}
 	case "]":
-		if m.activeDay < maxDays {
-			m = m.switchToDay(m.activeDay + 1)
+		nextDay := m.nextAvailableDay()
+		if nextDay != m.activeDay {
+			m = m.switchToDay(nextDay)
 			m.statusMsg = fmt.Sprintf("Day %d", m.activeDay)
 		}
 
@@ -220,6 +300,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.activeStep == core.StepListening {
 			m.dictationInputMode = true
 			m.dictationCursor = len([]rune(m.dictationInput))
+		} else {
+			// Enter two-key day selection mode: wait for 1..7 digit next
+			m.awaitingDayDigit = true
+			m.statusMsg = "Press 1..7 to jump to day (or Esc to cancel)"
 		}
 
 	case "v":
@@ -275,6 +359,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.speechRecording = false
 			m.speechSecondsLeft = 0
 			m.statusMsg = "Recording canceled."
+			return m, nil
+		}
+		// If user pressed Esc while awaiting a day digit, cancel that mode
+		if m.awaitingDayDigit {
+			m.awaitingDayDigit = false
+			m.statusMsg = "Day selection canceled"
 			return m, nil
 		}
 	}

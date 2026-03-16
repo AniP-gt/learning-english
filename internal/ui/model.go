@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,15 +17,16 @@ import (
 )
 
 type Model struct {
-	config      *core.Config
-	storage     *storage.FileStorage
-	gemini      *geminiPkg.Client
-	weekPath    core.WeekPath
-	activeStep  core.Step
-	activeDay   int
-	width       int
-	height      int
-	sidebarOpen bool
+	config        *core.Config
+	storage       *storage.FileStorage
+	gemini        *geminiPkg.Client
+	weekPath      core.WeekPath
+	activeStep    core.Step
+	activeDay     int
+	availableDays []int
+	width         int
+	height        int
+	sidebarOpen   bool
 
 	weeks          []core.WeekPath
 	sidebarCursor  int
@@ -107,6 +111,10 @@ type Model struct {
 
 	statusMsg string
 	loading   bool
+
+	// awaitingDayDigit indicates the UI is waiting for a digit (1..7)
+	// after the user pressed the two-key day selection prefix ("d").
+	awaitingDayDigit bool
 }
 
 const maxDays = 7
@@ -160,7 +168,7 @@ func NewModel(config *core.Config) Model {
 
 	m.readingComment = ""
 	m = m.loadWeekMetadata(weekPath)
-	m = m.switchToDay(m.activeDay)
+	m = m.resolveWeekDayState(weekPath, m.activeDay)
 	audioTools := detectSpeechAudioTools()
 	m.speechCanRecord = audioTools.CanRecord()
 	m.speechCanPlay = audioTools.CanPlay()
@@ -218,6 +226,93 @@ func clampDay(day int) int {
 	return day
 }
 
+func (m Model) listAvailableDays(wp core.WeekPath) []int {
+	entries, err := os.ReadDir(m.storage.GetWeekDir(wp))
+	if err != nil {
+		return nil
+	}
+
+	days := make([]int, 0, maxDays)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := strings.ToLower(entry.Name())
+		if !strings.HasPrefix(name, "day") {
+			continue
+		}
+		day, convErr := strconv.Atoi(strings.TrimPrefix(name, "day"))
+		if convErr != nil || day < 1 || day > maxDays {
+			continue
+		}
+		days = append(days, day)
+	}
+
+	sort.Ints(days)
+	return days
+}
+
+func resolveRequestedDay(requestedDay int, availableDays []int) int {
+	requestedDay = clampDay(requestedDay)
+	if len(availableDays) == 0 {
+		return requestedDay
+	}
+	for _, day := range availableDays {
+		if day == requestedDay {
+			return day
+		}
+	}
+	return availableDays[0]
+}
+
+func (m Model) resolveWeekDayState(wp core.WeekPath, requestedDay int) Model {
+	m.availableDays = m.listAvailableDays(wp)
+	m.activeDay = resolveRequestedDay(requestedDay, m.availableDays)
+	return m.loadDayArtifacts(wp, m.activeDay)
+}
+
+func (m Model) hasAvailableDay(day int) bool {
+	if len(m.availableDays) == 0 {
+		return day >= 1 && day <= maxDays
+	}
+	for _, availableDay := range m.availableDays {
+		if availableDay == day {
+			return true
+		}
+	}
+	return false
+}
+
+func (m Model) previousAvailableDay() int {
+	if len(m.availableDays) == 0 {
+		if m.activeDay > 1 {
+			return m.activeDay - 1
+		}
+		return m.activeDay
+	}
+	for i := len(m.availableDays) - 1; i >= 0; i-- {
+		if m.availableDays[i] < m.activeDay {
+			return m.availableDays[i]
+		}
+	}
+	return m.activeDay
+}
+
+func (m Model) nextAvailableDay() int {
+	if len(m.availableDays) == 0 {
+		if m.activeDay < maxDays {
+			return m.activeDay + 1
+		}
+		return m.activeDay
+	}
+	for _, day := range m.availableDays {
+		if day > m.activeDay {
+			return day
+		}
+	}
+	return m.activeDay
+}
+
 func (m Model) loadWeekMetadata(wp core.WeekPath) Model {
 	m.parsedWords = nil
 	m.flashcardChecked = nil
@@ -234,7 +329,7 @@ func (m Model) loadWeekMetadata(wp core.WeekPath) Model {
 }
 
 func (m Model) switchToDay(day int) Model {
-	day = clampDay(day)
+	day = resolveRequestedDay(day, m.availableDays)
 	m.activeDay = day
 	return m.loadDayArtifacts(m.weekPath, day)
 }

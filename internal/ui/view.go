@@ -33,7 +33,11 @@ func (m Model) renderHeader() string {
 		geminiStatus = styleHint.Foreground(colorRed).Render("Gemini API: NO KEY")
 	}
 	ttsStatus := styleHint.Foreground(colorPurple).Render("TTS: say (macOS)")
-	pathLabel := styleHint.Foreground(colorFgDim).Render(fmt.Sprintf("%s (Day %d)", m.weekPath.Path(), m.activeDay))
+	dayLabel := fmt.Sprintf("Day %d", m.activeDay)
+	if len(m.availableDays) > 0 {
+		dayLabel = fmt.Sprintf("%s (%d/%d)", dayLabel, len(m.availableDays), maxDays)
+	}
+	pathLabel := styleHint.Foreground(colorFgDim).Render(fmt.Sprintf("%s (%s)", m.weekPath.Path(), dayLabel))
 
 	left := fmt.Sprintf("📁 %s", pathLabel)
 	right := fmt.Sprintf("%s | %s", geminiStatus, ttsStatus)
@@ -122,7 +126,7 @@ func (m Model) renderFooter() string {
 
 	left := fmt.Sprintf(" %s | Step:%d/7 | %s | Day:%d | tab:weeks T:hide-sidebar g:Gemini ?:settings q:quit",
 		mode, m.activeStep, m.weekPath.Path(), m.activeDay)
-	right := fmt.Sprintf("UTF-8 | %s | [, ]:change day", status)
+	right := fmt.Sprintf("UTF-8 | %s | [, ]:switch available day | d then 1..7: jump", status)
 
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
