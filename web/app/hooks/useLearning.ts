@@ -306,6 +306,30 @@ export const useLearning = () => {
     setManualSceneImage("");
   }, []);
 
+  const handleClearManualData = useCallback(() => {
+    // Clear in-memory state
+    setManualWordsMarkdown("");
+    setPersistedManualReading("");
+    setManualSceneImage("");
+    setReadingOutput("");
+    setWordsOutput("");
+    setWordsStatus("idle");
+    setReadingStatus("idle");
+    setDerivedStage("idle");
+    setSpeechText("");
+
+    // Clear localStorage keys if available
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(MANUAL_WORDS_KEY);
+        localStorage.removeItem(MANUAL_READING_KEY);
+        localStorage.removeItem(MANUAL_SCENE_IMAGE_KEY);
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [setReadingOutput]);
+
   const saveWordsToFile = useCallback(
     async (markdown: string) => {
       const targetWeek = activeWeek || currentWeekKey;
@@ -833,6 +857,7 @@ export const useLearning = () => {
     manualSceneImage,
     handleManualSceneImageUpload,
     handleManualSceneImageDelete,
+    handleClearManualData,
     voices,
     selectedVoice,
     setSelectedVoice,

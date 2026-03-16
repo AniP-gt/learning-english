@@ -17,6 +17,7 @@ type WordsStepProps = {
   manualImportReady: boolean;
   onManualMarkdownChangeAction: (value: string) => void;
   onManualWordsImportAction: () => void;
+  onClearManualData?: () => void;
 };
 
 const emptyRow = (colCount: number): string[] => Array.from({ length: colCount }, () => "");
@@ -38,6 +39,7 @@ export const WordsStep = ({
   manualImportReady,
   onManualMarkdownChangeAction,
   onManualWordsImportAction,
+  onClearManualData,
 }: WordsStepProps) => {
   const colCount = wordsTable?.headers.length ?? 3;
 
@@ -179,14 +181,25 @@ export const WordsStep = ({
             className="w-full rounded border border-[#24283b] bg-[#0f111a] p-3 text-[13px] leading-relaxed text-[#cdd6f4] placeholder-[#3b4261] resize-y focus:border-[#7aa2f7] focus:outline-none"
           />
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onManualWordsImportAction}
-              disabled={!manualImportReady}
-              className="rounded-full border border-[#24283b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.4em] text-[#9ece6a] disabled:opacity-40"
-            >
-              Convert to table
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onManualWordsImportAction}
+                disabled={!manualImportReady}
+                className="rounded-full border border-[#24283b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.4em] text-[#9ece6a] disabled:opacity-40"
+              >
+                Convert to table
+              </button>
+              {onClearManualData && (
+                <button
+                  type="button"
+                  onClick={onClearManualData}
+                  className="rounded-full border border-[#24283b] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.4em] text-[#f7768e]"
+                >
+                  Clear manual data
+                </button>
+              )}
+            </div>
             {manualMarkdown && !manualImportReady && (
               <p className="text-[11px] text-[#f7768e]">Tables require headers, a separator line, and at least one row.</p>
             )}
