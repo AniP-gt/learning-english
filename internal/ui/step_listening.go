@@ -101,7 +101,11 @@ func (m Model) renderListeningStep(width, height int) string {
 			Width(width - 8).
 			Render(
 				lipgloss.NewStyle().Foreground(colorPurple).Bold(true).Render("本文（答え合わせ）:") + "\n" +
-					truncateText(m.listeningText, 300),
+					// Show the full listening text for answer checking. Previously we truncated
+					// with truncateText(..., 300) which could cut multibyte runes and also
+					// prevented users from seeing the entire passage when toggling with 'v'.
+					// Render the full string; lipgloss will wrap according to width when displayed.
+					m.listeningText,
 			)
 	}
 
