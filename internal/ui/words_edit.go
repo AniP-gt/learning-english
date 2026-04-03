@@ -70,7 +70,8 @@ func (m Model) focusWordsFormField(next int) (Model, tea.Cmd) {
 }
 
 func (m Model) renderWordsEditMode(width, height int) string {
-	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — Edit Mode")
+	cw := width - 4
+	title := styleStepTitle.Foreground(colorYellow).Width(cw).Render("Step 2: Words — Edit Mode")
 
 	var rows []string
 	if len(m.parsedWords) == 0 {
@@ -112,10 +113,10 @@ func (m Model) renderWordsEditMode(width, height int) string {
 				Width(width-12).
 				Render(m.wordsFormInputs[i].View()))
 		}
-		formRows = append(formRows, styleHint.Render("Tab/↑/↓: move field | Enter: save | Esc: cancel"))
+		formRows = append(formRows, styleHint.Width(cw).Render("Tab/↑/↓: move field | Enter: save | Esc: cancel"))
 		inputBox = styleContentBox.Width(width - 8).Render(lipgloss.JoinVertical(lipgloss.Left, formRows...))
 	} else {
-		hint := styleHint.Render("i:insert u:update d:delete Enter:confirm esc:exit")
+		hint := styleHint.Width(cw).Render("i:insert u:update d:delete Enter:confirm esc:exit")
 		inputBox = hint
 	}
 
@@ -126,7 +127,7 @@ func (m Model) renderWordsEditMode(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
+		bgLine(cw).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().

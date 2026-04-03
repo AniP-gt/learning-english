@@ -14,13 +14,14 @@ import (
 )
 
 func (m Model) renderSpeechStep(width, height int) string {
+	cw := width - 4
 	outerStyle := lipgloss.NewStyle().
 		Background(colorBg).
 		Width(width).
 		Padding(1, 2)
 	innerHeight := max(1, height-outerStyle.GetVerticalFrameSize())
 
-	title := styleStepTitle.Foreground(colorRed).Render("Step 5: Speech — スピーチ解析")
+	title := styleStepTitle.Foreground(colorRed).Width(cw).Render("Step 5: Speech — スピーチ解析")
 
 	// format seconds as MM:SS for clearer readability
 	mins := m.speechSecondsLeft / 60
@@ -113,7 +114,7 @@ func (m Model) renderSpeechStep(width, height int) string {
 		BorderForeground(colorBorderAlt).
 		Padding(1, 2)
 
-	hint := styleHint.Render("r: 60秒録音 | p: 再生 | i: テキスト入力 | Enter/g: 解析 | j/k: スクロール | Esc: キャンセル")
+	hint := styleHint.Width(cw).Render("r: 60秒録音 | p: 再生 | i: テキスト入力 | Enter/g: 解析 | j/k: スクロール | Esc: キャンセル")
 
 	contentAreaHeight := innerHeight
 	baseHeight := lipgloss.Height(title) +
@@ -171,12 +172,12 @@ func (m Model) renderSpeechStep(width, height int) string {
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(controlPanel),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(renderSpeechAudioPathLine(width, m.speechAudioPath)),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(transcriptBox),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputSection),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(feedbackBox),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
+		bgLine(cw).PaddingTop(1).Render(controlPanel),
+		bgLine(cw).PaddingTop(1).Render(renderSpeechAudioPathLine(width, m.speechAudioPath)),
+		bgLine(cw).PaddingTop(1).Render(transcriptBox),
+		bgLine(cw).PaddingTop(1).Render(inputSection),
+		bgLine(cw).PaddingTop(1).Render(feedbackBox),
+		bgLine(cw).PaddingTop(1).Render(hint),
 	)
 
 	rendered := outerStyle.
@@ -202,17 +203,18 @@ func speechPathLabel(path string) string {
 }
 
 func (m Model) render321Step(width, height int) string {
-	title := styleStepTitle.Foreground(colorOrange).Render("Step 6: 3-2-1 — 画像想起訓練")
+	cw := width - 4
+	title := styleStepTitle.Foreground(colorOrange).Width(cw).Render("Step 6: 3-2-1 — 画像想起訓練")
 
 	var content string
 	if m.scene321Loading {
-		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini 2.5 Flash Image で画像生成中...")
+		content = styleDimCenter.Width(cw).Render("⏳ Gemini 2.5 Flash Image で画像生成中...")
 	} else if m.image321Preview != "" {
-		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
+		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Width(cw).Render(fmt.Sprintf("📁 %s", m.image321Path))
 		content = lipgloss.JoinVertical(lipgloss.Left, pathLine, m.image321Preview)
 	} else if m.image321Path != "" {
 		preview := renderTerminalImage(m.image321Path, width-12, height-10)
-		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render(fmt.Sprintf("📁 %s", m.image321Path))
+		pathLine := lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Width(cw).Render(fmt.Sprintf("📁 %s", m.image321Path))
 		if preview != "" {
 			content = lipgloss.JoinVertical(lipgloss.Left, pathLine, preview)
 		} else {
@@ -228,12 +230,12 @@ func (m Model) render321Step(width, height int) string {
 			Render("Step 5 のスピーチから画像を生成します。\n\n英文を日本語に訳さず「イメージ」で捉える訓練です。\n\n'g' を押して Gemini 2.5 Flash Image で画像を生成してください。")
 	}
 
-	hint := styleHint.Render("g: Gemini 2.5 Flash Image で画像生成 (Step 5 完了後) | r: 画像再描画")
+	hint := styleHint.Width(cw).Render("g: Gemini 2.5 Flash Image で画像生成 (Step 5 完了後) | r: 画像再描画")
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(content),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
+		bgLine(cw).PaddingTop(1).Render(content),
+		bgLine(cw).PaddingTop(1).Render(hint),
 	)
 
 	return lipgloss.NewStyle().

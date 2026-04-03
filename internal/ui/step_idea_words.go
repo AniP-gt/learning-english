@@ -8,29 +8,30 @@ import (
 )
 
 func (m Model) renderIdeaStep(width, height int) string {
-	title := styleStepTitle.Render("Step 1: Idea — 日本語ネタ出し")
+	cw := width - 4 // content width inside Padding(1,2)
+	title := styleStepTitle.Width(cw).Render("Step 1: Idea — 日本語ネタ出し")
 
 	var content string
 	if m.ideaMode {
 		prompt := styleInput.Width(width - 8).Render(
 			"日本語で話したいトピックを入力してください:\n\n> " + insertCursor(m.ideaInput, m.ideaCursor),
 		)
-		hint := styleHint.Render("Enter: 送信 | Esc: キャンセル")
+		hint := styleHint.Width(cw).Render("Enter: 送信 | Esc: キャンセル")
 		content = lipgloss.JoinVertical(lipgloss.Left, prompt, hint)
 	} else if m.loading {
-		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini が生成中...")
+		content = styleDimCenter.Width(cw).Render("⏳ Gemini が生成中...")
 	} else if m.ideaResponse != "" {
 		responseBox := styleContentBox.Width(width - 8).Render(m.ideaResponse)
-		hint := styleHint.Render("i: 再入力 | g: Gemini再生成 | 2: Wordsへ進む")
+		hint := styleHint.Width(cw).Render("i: 再入力 | g: Gemini再生成 | 2: Wordsへ進む")
 		var extra string
 		if m.wordsLoading {
-			extra = styleDimCenter.Width(width - 4).Render("⏳ Words & Reading を生成中...")
+			extra = styleDimCenter.Width(cw).Render("⏳ Words & Reading を生成中...")
 		} else if m.words != "" && m.readingLoaded {
-			extra = styleHint.Foreground(colorGreen).Render("✓ Words & Reading 生成済み")
+			extra = styleHint.Foreground(colorGreen).Width(cw).Render("✓ Words & Reading 生成済み")
 		}
 		content = lipgloss.JoinVertical(lipgloss.Left, responseBox, hint, extra)
 	} else {
-		hint := styleHint.Render("i: 日本語入力開始 | g: Gemini API (GEMINI_API_KEY必要)")
+		hint := styleHint.Width(cw).Render("i: 日本語入力開始 | g: Gemini API (GEMINI_API_KEY必要)")
 		placeholder := styleContentBox.Width(width - 8).
 			Foreground(colorFgDim).
 			Render("日本語で話したいことを何でも書いてください。\n\n例: 最近コーヒーにハマっていて、毎朝豆を挽いている。ポアオーバーの技術を磨きたい。")
@@ -42,13 +43,14 @@ func (m Model) renderIdeaStep(width, height int) string {
 			Background(colorBg).
 			Foreground(colorYellow).
 			Padding(0, 1).
+			Width(cw).
 			Render(fmt.Sprintf("入力: %s", m.ideaInput))
 		content = lipgloss.JoinVertical(lipgloss.Left, inputPreview, content)
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
+		bgLine(cw).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().
@@ -60,7 +62,8 @@ func (m Model) renderIdeaStep(width, height int) string {
 }
 
 func (m Model) renderWordsStep(width, height int) string {
-	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — 単語帳作成")
+	cw := width - 4
+	title := styleStepTitle.Foreground(colorYellow).Width(cw).Render("Step 2: Words — 単語帳作成")
 
 	if m.flashcardMode {
 		return m.renderFlashcardMode(width, height)
@@ -72,13 +75,13 @@ func (m Model) renderWordsStep(width, height int) string {
 
 	var content string
 	if m.wordsLoading {
-		content = styleDimCenter.Width(width - 4).Render("⏳ Gemini が単語リストを生成中...")
+		content = styleDimCenter.Width(cw).Render("⏳ Gemini が単語リストを生成中...")
 	} else if m.words != "" {
 		var hint string
 		if len(m.parsedWords) > 0 {
-			hint = styleHint.Render(fmt.Sprintf("g: 再生成 | e: 編集モード | f: フラッシュカードモード (%d 単語)", len(m.parsedWords)))
+			hint = styleHint.Width(cw).Render(fmt.Sprintf("g: 再生成 | e: 編集モード | f: フラッシュカードモード (%d 単語)", len(m.parsedWords)))
 		} else {
-			hint = styleHint.Render("g: 再生成 | e: 編集モード")
+			hint = styleHint.Width(cw).Render("g: 再生成 | e: 編集モード")
 		}
 		content = lipgloss.JoinVertical(lipgloss.Left,
 			styleContentBox.Width(width-8).Render(m.words),
@@ -89,13 +92,13 @@ func (m Model) renderWordsStep(width, height int) string {
 			styleContentBox.Width(width-8).
 				Foreground(colorFgDim).
 				Render("単語リストがまだありません。\n\nStep 1 でトピックを生成してから 'g' を押してください。\n\n例:\n| Word | Translation | Example |\n|------|-------------|---------||\n| coffee | コーヒー | I love coffee every morning. |\n| aroma | 香り | The aroma is wonderful. |"),
-			styleHint.Render("g: Gemini で単語生成 (Step 1 完了後) | e: 編集モードで手動追加"),
+			styleHint.Width(cw).Render("g: Gemini で単語生成 (Step 1 完了後) | e: 編集モードで手動追加"),
 		)
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(content),
+		bgLine(cw).Padding(1, 0).Render(content),
 	)
 
 	return lipgloss.NewStyle().
@@ -107,6 +110,7 @@ func (m Model) renderWordsStep(width, height int) string {
 }
 
 func (m Model) renderFlashcardMode(width, height int) string {
+	cw := width - 4
 	n := len(m.parsedWords)
 	if n == 0 {
 		return styleDimCenter.Width(width).Height(height).Render("単語がありません")
@@ -186,19 +190,19 @@ func (m Model) renderFlashcardMode(width, height int) string {
 		Align(lipgloss.Center).
 		Render(cardFace)
 
-	hint := styleHint.Render("Space: 裏返す  ←/→: 前後  K: 覚えた  s: 発音  r: リセット  Esc: 戻る")
+	hint := styleHint.Width(cw).Render("Space: 裏返す  ←/→: 前後  K: 覚えた  s: 発音  r: リセット  Esc: 戻る")
 
-	title := styleStepTitle.Foreground(colorYellow).Render("Step 2: Words — フラッシュカード")
+	title := styleStepTitle.Foreground(colorYellow).Width(cw).Render("Step 2: Words — フラッシュカード")
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(
+		bgLine(cw).Padding(1, 0).Render(
 			lipgloss.JoinVertical(lipgloss.Center,
 				counter,
-				lipgloss.NewStyle().Background(colorBg).Padding(1, 0).Render(cardBox),
+				bgLine(cw).Padding(1, 0).Render(cardBox),
 				checkMark,
-				lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(progressBar),
-				lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint),
+				bgLine(cw).PaddingTop(1).Render(progressBar),
+				bgLine(cw).PaddingTop(1).Render(hint),
 			),
 		),
 	)
@@ -219,9 +223,9 @@ func buildProgressBar(checked []bool, width int) string {
 	bar := strings.Builder{}
 	for _, c := range checked {
 		if c {
-			bar.WriteString(lipgloss.NewStyle().Foreground(colorGreen).Render("█"))
+			bar.WriteString(lipgloss.NewStyle().Background(colorBg).Foreground(colorGreen).Render("█"))
 		} else {
-			bar.WriteString(lipgloss.NewStyle().Foreground(colorFgDim).Render("░"))
+			bar.WriteString(lipgloss.NewStyle().Background(colorBg).Foreground(colorFgDim).Render("░"))
 		}
 	}
 	return bar.String()

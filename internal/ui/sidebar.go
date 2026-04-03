@@ -207,11 +207,12 @@ func (m Model) renderSidebar(width, height int) string {
 
 	tree := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
+	sw := width - 2 // sidebar content width (border takes ~2)
 	inner := lipgloss.JoinVertical(lipgloss.Left,
 		header,
-		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(dayChips),
-		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(tree),
-		lipgloss.NewStyle().Background(colorBgDark).PaddingTop(1).Render(dataPathLine),
+		bgLineDark(sw).PaddingTop(1).Render(dayChips),
+		bgLineDark(sw).PaddingTop(1).Render(tree),
+		bgLineDark(sw).PaddingTop(1).Render(dataPathLine),
 		hint,
 	)
 
@@ -255,10 +256,7 @@ func (m Model) renderDaySwitcher(width int) string {
 	}
 
 	line := strings.Join(chips, " ")
-	if lipgloss.Width(line) > width {
-		return lipgloss.NewStyle().Width(width).Render(line)
-	}
-	return line
+	return lipgloss.NewStyle().Background(colorBgDark).Width(width).Render(line)
 }
 
 func truncateLeft(s string, maxLen int) string {

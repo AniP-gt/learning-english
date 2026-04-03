@@ -10,7 +10,8 @@ import (
 )
 
 func (m Model) renderListeningStep(width, height int) string {
-	title := styleStepTitle.Foreground(colorPurple).Render("Step 4: Listening — Dictation")
+	cw := width - 4
+	title := styleStepTitle.Foreground(colorPurple).Width(cw).Render("Step 4: Listening — Dictation")
 
 	speedBar := fmt.Sprintf("Rate: %d wpm", m.listeningSpeed)
 
@@ -85,8 +86,10 @@ func (m Model) renderListeningStep(width, height int) string {
 			scoreColor = colorYellow
 		}
 		scoreArea = lipgloss.NewStyle().
+			Background(colorBg).
 			Foreground(scoreColor).
 			Bold(true).
+			Width(cw).
 			Render(fmt.Sprintf("一致率: %d%%", m.dictationScore))
 	}
 
@@ -109,20 +112,20 @@ func (m Model) renderListeningStep(width, height int) string {
 			)
 	}
 
-	hint := styleHint.Render("s/SPACE: 再生 | +/-: 速度変更 | d: ディクテーション入力 | enter: 採点 | v: 本文表示切替")
+	hint := styleHint.Width(cw).Render("s/SPACE: 再生 | +/-: 速度変更 | d: ディクテーション入力 | enter: 採点 | v: 本文表示切替")
 
 	parts := []string{
 		title,
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(controlPanel),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputArea),
+		bgLine(cw).PaddingTop(1).Render(controlPanel),
+		bgLine(cw).PaddingTop(1).Render(inputArea),
 	}
 	if scoreArea != "" {
-		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(scoreArea))
+		parts = append(parts, bgLine(cw).PaddingTop(1).Render(scoreArea))
 	}
 	if answerArea != "" {
-		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(answerArea))
+		parts = append(parts, bgLine(cw).PaddingTop(1).Render(answerArea))
 	}
-	parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint))
+	parts = append(parts, bgLine(cw).PaddingTop(1).Render(hint))
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
 

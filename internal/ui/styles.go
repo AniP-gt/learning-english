@@ -35,6 +35,7 @@ var (
 			Padding(0, 1)
 
 	styleInactiveTab = lipgloss.NewStyle().
+				Background(colorBgDark).
 				Foreground(colorFgDim).
 				Padding(0, 1)
 
@@ -103,6 +104,18 @@ var (
 			Foreground(colorFgDim).
 			Italic(true)
 )
+
+// bgLine returns a style that fills the full contentWidth with colorBg.
+// Use this to wrap inner elements so that the background colour is consistent
+// across the entire row and no terminal-default gaps appear.
+func bgLine(contentWidth int) lipgloss.Style {
+	return lipgloss.NewStyle().Background(colorBg).Width(contentWidth)
+}
+
+// bgLineDark is the same helper but for sidebar (colorBgDark) backgrounds.
+func bgLineDark(contentWidth int) lipgloss.Style {
+	return lipgloss.NewStyle().Background(colorBgDark).Width(contentWidth)
+}
 
 func insertCursor(text string, cursorPos int) string {
 	runes := []rune(text)

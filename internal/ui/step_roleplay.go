@@ -7,7 +7,8 @@ import (
 )
 
 func (m Model) renderReplyStep(width, height int) string {
-	title := styleStepTitle.Foreground(colorBlue).Render("Step 7: Reply — チャット会話")
+	cw := width - 4
+	title := styleStepTitle.Foreground(colorBlue).Width(cw).Render("Step 7: Reply — チャット会話")
 
 	chatHeight := height - 14
 	if chatHeight < 4 {
@@ -88,17 +89,17 @@ func (m Model) renderReplyStep(width, height int) string {
 			Render(m.replyFeedback)
 	}
 
-	hint := styleHint.Render("i: 入力 | Enter: 送信 (Geminiが音声返答) | s: 再生 | g: フィードバック | j/k: スクロール | Esc: キャンセル")
+	hint := styleHint.Width(cw).Render("i: 入力 | Enter: 送信 (Geminiが音声返答) | s: 再生 | g: フィードバック | j/k: スクロール | Esc: キャンセル")
 
 	parts := []string{
 		title,
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(chatBox),
-		lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(inputSection),
+		bgLine(cw).PaddingTop(1).Render(chatBox),
+		bgLine(cw).PaddingTop(1).Render(inputSection),
 	}
 	if feedbackSection != "" {
-		parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(feedbackSection))
+		parts = append(parts, bgLine(cw).PaddingTop(1).Render(feedbackSection))
 	}
-	parts = append(parts, lipgloss.NewStyle().Background(colorBg).PaddingTop(1).Render(hint))
+	parts = append(parts, bgLine(cw).PaddingTop(1).Render(hint))
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
